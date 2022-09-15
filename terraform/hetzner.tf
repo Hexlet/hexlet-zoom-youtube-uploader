@@ -28,10 +28,15 @@ resource "hcloud_ssh_key" "kirill_c" {
   public_key = file("../files/ssh_keys/kirill.c")
 }
 
+resource "hcloud_ssh_key" "sergei_m" {
+  name       = "sergei.m"
+  public_key = file("../files/ssh_keys/sergei.m")
+}
+
 resource "hcloud_server" "hexlet-zoom-youtube-uploader" {
   name        = "zoom-youtube-uploader"
   image       = "docker-ce"
-  server_type = "cx11"
+  server_type = "cpx11"
   location    = "hel1"
   ssh_keys    = data.hcloud_ssh_keys.all_keys.ssh_keys.*.name
 }
