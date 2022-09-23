@@ -14,7 +14,7 @@ create-config:
 dev:
 	NODE_ENV=development npx nodemon ./bin/index.js
 run:
-	chmod +x ./src/bin/index.js && NODE_ENV=production ./bin/index.js
+	chmod +x ./bin/index.js && NODE_ENV=production ./bin/index.js &
 stop: stop-node
 stop-node:
 	kill -15 `pidof node` || true
@@ -30,7 +30,7 @@ time:
 
 # dev
 lint:
-	npx eslint .
+	npx eslint . --fix
 test:
 	NODE_ENV=test npm test -s
 test-dev:
