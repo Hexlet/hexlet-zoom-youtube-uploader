@@ -1,0 +1,22 @@
+env:
+  es2021: true
+  node: true
+extends:
+  - airbnb-base
+  - plugin:import/recommended
+  - plugin:import/errors
+  - plugin:import/warnings
+parserOptions:
+  ecmaVersion: 13
+  sourceType: module
+rules:
+  indent: ["error", 2]
+  camelcase: off
+  max-len: ["error", { code: 120, ignoreComments: true, ignoreTemplateLiterals: true }]
+  no-await-in-loop: off
+  no-console: off
+  no-param-reassign: 0
+  no-underscore-dangle: [2, { "allow": ["__filename", "__dirname"] }]
+  import/extensions: off
+  import/no-default-export: 2
+  import/prefer-default-export: off
