@@ -12,24 +12,20 @@ import {
 
 const { DateTime } = luxon;
 
-const youtubeClientBodySchema = yup.object({
-  channel_owner: yup.string().required(),
+const googleClientBodySchema = yup.object({
+  owner: yup.string().required(),
   client_secret: yup.string().required(),
   client_id: yup.string().required(),
+  channel_id: yup.string().required(),
 }).required();
 
 export function reqister(req, res) {
   const { body = {} } = req;
 
-  youtubeClientBodySchema
-    .validate(body, { abortEarly: false })
-    .then((params) => this.youTubeClient
-      .save({
-        owner: params.channel_owner,
-        client_id: params.client_id,
-        client_secret: params.client_secret,
-      })
-      .then(() => res.redirect('/oauth2')))
+  googleClientBodySchema
+    .validate(body, { abortEarly: false, stripUnknown: true })
+    .then((params) => this.googleClient.save(params))
+    .then(() => res.redirect('/oauth2'))
     .catch((err) => res
       .code(constants.HTTP_STATUS_BAD_REQUEST)
       .send(err.messages ? err.messages.join() : err.message));
@@ -37,22 +33,22 @@ export function reqister(req, res) {
 
 export function oauth(req, res) {
   const { query } = req;
-  if (!(query && query.channel_owner)) {
+  if (!(query && query.owner)) {
     res
       .code(constants.HTTP_STATUS_BAD_REQUEST)
       .send('Channel owner required');
   }
 
-  this.youTubeClient
-    .get(query.channel_owner)
-    .then((youTubeClient) => {
-      if (youTubeClient === null) {
+  this.googleClient
+    .get(query.owner)
+    .then((googleClient) => {
+      if (googleClient === null) {
         return res
           .code(constants.HTTP_STATUS_FORBIDDEN)
           .send('YouTube client was not registered');
       }
 
-      return res.redirect(youTubeClient.authURL);
+      return res.redirect(googleClient.oauth.authURL);
     });
 }
 
@@ -64,25 +60,21 @@ export function oauthCallback(req, res) {
     return res.code(constants.HTTP_STATUS_BAD_REQUEST).send('Not found oauth state');
   }
 
-  const state = JSON.parse(req.query.state);
+  const { owner } = JSON.parse(req.query.state);
 
-  return this.youTubeClient
-    .get(state.channel_owner)
-    .then((youTubeClient) => {
-      if (youTubeClient === null) {
+  return this.googleClient
+    .get(owner)
+    .then((googleClient) => {
+      if (googleClient === null) {
         return res
           .code(constants.HTTP_STATUS_FORBIDDEN)
           .send('YouTube client was not registered');
       }
 
-      return youTubeClient
-        .getToken(req.query.code)
-        .then(({ tokens }) => {
-          youTubeClient.setCredentials(tokens);
-          return this.storage.tokens.set({
-            owner: state.channel_owner,
-            token: tokens,
-          });
+      return googleClient
+        .authorize({
+          owner,
+          code: req.query.code,
         })
         .then(() => {
           res.code(constants.HTTP_STATUS_OK).send('ok');
@@ -99,6 +91,7 @@ export function events(req, res) {
   if (!(query && query.owner)) {
     return res.code(constants.HTTP_STATUS_BAD_REQUEST).send('Not found owner');
   }
+  const { owner } = query;
   // const data = this.config.IS_DEV_ENV ? bodyFixture : body;
   const data = this.config.IS_DEV_ENV ? { payload: { object: { recording_files: [] } } } : body;
   const {
@@ -120,7 +113,7 @@ export function events(req, res) {
 
   return this.storage.events
     .add({
-      owner: query.owner,
+      owner,
       state,
       data,
     })
@@ -202,7 +195,7 @@ export function events(req, res) {
 
         return this.storage.records
           .add({
-            owner: query.owner,
+            owner,
             eventId,
             loadFromZoomState: loadStateEnum.ready,
             loadToYoutubeState: loadStateEnum.ready,
