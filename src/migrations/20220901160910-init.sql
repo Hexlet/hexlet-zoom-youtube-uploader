@@ -37,6 +37,16 @@ CREATE TABLE tokens (
 
 CREATE INDEX tokens_ix_owner ON tokens (owner);
 
+
+CREATE TABLE youtube_clients (
+  id            INTEGER PRIMARY KEY,
+  owner         TEXT    NOT NULL,
+  client_id     TEXT    NOT NULL
+  client_secret TEXT    NOT NULL
+);
+
+CREATE INDEX youtube_clients_ix_owner ON tokens (channel_owner);
+
 --------------------------------------------------------------------------------
 -- Down
 --------------------------------------------------------------------------------
@@ -46,7 +56,9 @@ DROP INDEX events_ix_state;
 DROP INDEX records_ix_eventId;
 DROP INDEX records_ix_zoom;
 DROP INDEX records_ix_youtube;
+DROP INDEX youtube_clients_ix_owner;
 
 DROP TABLE events;
 DROP TABLE records;
 DROP TABLE tokens;
+DROP TABLE youtube_clients;

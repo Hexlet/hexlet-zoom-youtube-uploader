@@ -4,6 +4,44 @@ import { fileURLToPath } from 'url';
 import axios from 'axios';
 
 export const __dirname = path.dirname(fileURLToPath(import.meta.url));
+export const oauthCallbackRoutePath = '/oauth2callback';
+
+const arrToEnum = (arr) => Object.freeze(arr.reduce((acc, state) => {
+  acc[state] = state;
+  return acc;
+}, {}));
+
+export const processingStateEnum = arrToEnum(['ready', 'processed', 'rejected']);
+export const loadStateEnum = arrToEnum(['ready', 'success', 'failed']);
+export const topicEnum = arrToEnum(['other', 'hexlet', 'college']);
+
+export const parseTopic = (topic) => {
+  const parts = topic.split(';').map((item) => item.trim());
+  let type = topicEnum.other;
+  if (parts.length < 3) {
+    return { type };
+  }
+  const [theme = '', tutor = '', potok = ''] = parts;
+  const potokLC = potok.trim().toLowerCase();
+  const isHexletTopic = potokLC.startsWith('potok');
+  const isCollegeTopic = potokLC.startsWith('колледж');
+  if (!(isHexletTopic || isCollegeTopic)) {
+    return { type };
+  }
+
+  if (isHexletTopic) {
+    type = topicEnum.hexlet;
+  } else if (isCollegeTopic) {
+    type = topicEnum.college;
+  }
+
+  return {
+    theme: theme.trim(),
+    tutor: tutor.trim(),
+    potok: potokLC,
+    type,
+  };
+};
 
 export const padString = (string, maxLength = 50, endSymbol = '…') => {
   if (string.length <= maxLength) {
@@ -14,7 +52,7 @@ export const padString = (string, maxLength = 50, endSymbol = '…') => {
   return `${paddedString}${endSymbol}`;
 };
 
-export const asyncTimeout = (ms, cb = (() => {})) => {
+export const asyncTimeout = (ms, cb = (() => { })) => {
   let timerId = null;
 
   return new Promise((resolve) => {
@@ -36,6 +74,14 @@ export const toStr = (json) => {
     return `${e.message}; ${JSON.stringify(e, null, 1)}`;
   }
 };
+
+export const makeUniqueName = (() => {
+  let i = 0;
+  return () => {
+    i += 1;
+    return `${Date.now()}-${i}`;
+  };
+})();
 
 export const buildDataPath = (storageDirpath, filename, ext = 'json') => path
   .resolve(storageDirpath, 'data', `${filename}.${ext}`);
@@ -70,9 +116,9 @@ export const downloadZoomFile = ({ filepath, url, token }) => {
 export const createChunkLoader = (
   datasets,
   preparePromise,
-  fileWriter = () => {},
+  fileWriter = () => { },
   params = {},
-  chunkLogger = () => {},
+  chunkLogger = () => { },
 ) => async () => {
   const defaultParams = {
     chunkSize: 100,

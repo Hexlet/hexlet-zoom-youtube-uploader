@@ -4,59 +4,19 @@ import path from 'path';
 import fastify from 'fastify';
 // libs
 import ms from 'ms';
-import * as luxon from 'luxon';
 import sqlite3 from 'sqlite3';
 import * as sqlite from 'sqlite';
-import { google } from 'googleapis';
 // app
 import { configValidator } from '../utils/configValidator.js';
-import { bodyFixture } from '../fixtures/fixture.mjs';
+// import { bodyFixture } from '../fixtures/fixture.mjs';
 import { CronService } from '../libs/CronService.js';
+import { YouTubeClient } from '../libs/YouTubeClient.js';
 import {
-  padString,
-  // eslint-disable-next-line
-  downloadZoomFile,
   buildVideoPath,
   buildDataPath,
+  oauthCallbackRoutePath,
 } from '../utils/helpers.js';
-
-const { DateTime } = luxon;
-
-const processingStateEnum = ['ready', 'processed', 'rejected'].reduce((acc, state) => {
-  acc[state] = state;
-  return acc;
-}, {});
-const loadStateEnum = ['ready', 'success', 'failed'].reduce((acc, state) => {
-  acc[state] = state;
-  return acc;
-}, {});
-
-const topicEnum = ['other', 'hexlet', 'college'].reduce((acc, state) => {
-  acc[state] = state;
-  return acc;
-}, {});
-const parseTopic = (topic) => {
-  const parts = topic.split(';').map((item) => item.trim());
-  let type = topicEnum.other;
-  if (parts.length < 3) {
-    return { type };
-  }
-  const [theme = '', tutor = '', potok = ''] = parts;
-  const potokLC = potok.trim().toLowerCase();
-  const isHexletTopic = potokLC.startsWith('potok');
-  const isCollegeTopic = potokLC.startsWith('колледж');
-  if (isHexletTopic) {
-    type = topicEnum.hexlet;
-  } else if (isCollegeTopic) {
-    type = topicEnum.college;
-  }
-  return {
-    theme: theme.trim(),
-    tutor: tutor.trim(),
-    potok: potokLC,
-    type,
-  };
-};
+import * as controller from './controllers.js';
 
 const initServer = (config) => {
   const pinoPrettyTransport = {
@@ -64,226 +24,51 @@ const initServer = (config) => {
       target: 'pino-pretty',
     },
   };
+
   const transport = config.IS_DEV_ENV ? pinoPrettyTransport : {};
+
   const server = fastify({
     logger: {
       ...transport,
       level: config.LOG_LEVEL,
     },
   });
+
+  config.OAUTH_REDIRECT_URL = `${config.DOMAIN}:${config.PORT}${oauthCallbackRoutePath}`;
+
   server.decorate('config', config);
 
-  const oauthCallbackRoutePath = '/oauth2callback';
-  const oauthRedirectURL = `${config.DOMAIN}:${config.PORT}${oauthCallbackRoutePath}`;
-  const oauthClient = new google.auth.OAuth2(
-    config.YOUTUBE_CLIENT_ID,
-    config.YOUTUBE_CLIENT_SECRET,
-    oauthRedirectURL,
-  );
-  server.decorate('oauthClient', oauthClient);
-
-  const scopes = [
-    'https://www.googleapis.com/auth/youtube.readonly',
-    'https://www.googleapis.com/auth/youtube.upload',
-    'https://www.googleapis.com/auth/youtube',
-  ];
-
-  const authorizationUrl = oauthClient.generateAuthUrl({
-    access_type: 'offline',
-    scope: scopes,
-    include_granted_scopes: true,
-  });
-
-  const routeCommon = {
+  server.route({
     method: 'GET',
     url: '/',
     handler(req, res) {
       res.code(200).send('Hi!');
     },
-  };
+  });
 
-  server.route(routeCommon);
+  server.route({
+    method: 'POST',
+    url: '/oauth2',
+    handler: controller.reqister,
+  });
 
-  const routeOauth = {
+  server.route({
     method: 'GET',
     url: '/oauth2',
-    handler(req, res) {
-      const authURL = new URL(authorizationUrl);
-      const { query } = req;
-      if (!(query && query.channel_owner)) {
-        res.code(400).send('Channel owner required');
-      }
+    handler: controller.oauth,
+  });
 
-      authURL.searchParams.set('state', JSON.stringify({ channel_owner: query.channel_owner }));
-      res.redirect(authURL.toString());
-    },
-  };
-
-  server.route(routeOauth);
-
-  const routeOauthCallback = {
+  server.route({
     method: 'GET',
     url: `${oauthCallbackRoutePath}`,
-    handler(req, res) {
-      if (!req.query || !req.query.code) {
-        res.code(400).send('Not found oauth code');
-      }
-      if (!req.query.state) {
-        res.code(400).send('Not found oauth state');
-      } else {
-        const state = JSON.parse(req.query.state);
+    handler: controller.oauthCallback,
+  });
 
-        oauthClient
-          .getToken(req.query.code)
-          .then(({ tokens }) => {
-            oauthClient.setCredentials(tokens);
-            return server.storage.tokens.set({
-              owner: state.channel_owner,
-              token: tokens,
-            });
-          })
-          .then(() => {
-            res.code(200).send('ok');
-          })
-          .catch((err) => {
-            console.error(err);
-            res.code(400).send(err.message);
-          });
-      }
-    },
-  };
-
-  server.route(routeOauthCallback);
-
-  const routeEvents = {
+  server.route({
     method: 'POST',
     url: `/${config.ROUTE_UUID}`,
-    handler(req, res) {
-      const { body, query } = req;
-      if (!(query && query.owner)) {
-        return res.code(400).send('Not found owner');
-      }
-      const data = this.config.IS_DEV_ENV ? bodyFixture : body;
-      const {
-        topic,
-        duration,
-        recording_files,
-        start_time,
-        account_id,
-      } = data.payload.object;
-      const isTooShort = (duration < 5); // если запись менее 5 минут
-      const videoRecords = recording_files.filter(({ recording_type, status }) => (
-        (recording_type === 'shared_screen_with_speaker_view')
-        && (status === 'completed')
-      ));
-      const notHasVideo = videoRecords.length === 0;
-      const state = (notHasVideo || isTooShort)
-        ? processingStateEnum.rejected
-        : processingStateEnum.ready;
-
-      return this.storage.events
-        .add({
-          owner: query.owner,
-          state,
-          data,
-        })
-        .then((db) => {
-          res.code(200).send('ok');
-          return db;
-        })
-        .catch((err) => {
-          console.error(err);
-          res.code(400).send(err.message);
-        })
-        .then(({ lastID: eventId } = {}) => {
-          if (!eventId || (state === processingStateEnum.rejected)) return true;
-
-          const preparedTopic = topic.trim().replace(' ', '');
-          const parsedTopic = parseTopic(preparedTopic);
-
-          const recordMeta = {
-            isHexletTopic: (parsedTopic.type === topicEnum.hexlet),
-            isCollegeTopic: (parsedTopic.type === topicEnum.college),
-            date: DateTime.fromISO(start_time).setZone('Europe/Moscow').toFormat('dd.LL.yyyy'),
-            topicName: '',
-            topicAuthor: '',
-            topicPotok: '',
-            filename: '',
-            filepath: '',
-            youtubeDescription: '',
-            youtubeName: '',
-            youtubePlaylist: '',
-            youtubeUrl: '',
-            zoomAuthorId: account_id,
-          };
-
-          const genPrefix = (index) => (videoRecords.length > 1 ? `Часть ${index + 1}, ` : '');
-          const preparedRecordsPromises = videoRecords.map((record, recordIndex) => {
-            const prefix = genPrefix(recordIndex);
-            const postfix = `;${eventId}-${recordIndex}`;
-            record.download_token = data.download_token;
-
-            if (recordMeta.isHexletTopic || recordMeta.isCollegeTopic) {
-              const {
-                theme, tutor, potok,
-              } = parsedTopic;
-              // общая длина названия должна быть не более 100 символов. Это нужно и ютубу, и файловой системе.
-              // примерно так по символам: (10 префикс) + (50 тема) + (15 дата) + (25 имя автора)
-              // + до 10 символов на постфикс для файловой системы
-              const trimmedTutor = `${tutor ? `;${padString(tutor, 25)}` : ''}`;
-              recordMeta.topicName = `${padString(`${prefix}${theme}`, 60)} от ${recordMeta.date}${trimmedTutor}`;
-              recordMeta.topicAuthor = tutor;
-              recordMeta.topicPotok = potok;
-              recordMeta.youtubePlaylist = potok;
-
-              recordMeta.youtubeDescription = [
-                `* Полное название: ${theme}`,
-                `* Дата: ${recordMeta.date}`,
-                tutor ? `* Автор: ${tutor}` : '',
-                `* Поток: ${potok}`,
-              ].filter((x) => x).join('\n');
-            } else {
-              recordMeta.topicName = `${padString(`${prefix}${preparedTopic}`, 85)} от ${recordMeta.date}`;
-              recordMeta.youtubeDescription = [
-                `* Полное название: ${preparedTopic}`,
-                `* Дата: ${recordMeta.date}`,
-                `* Дата: ${recordMeta.zoomAuthorId}`,
-              ].join('\n');
-              recordMeta.youtubePlaylist = 'Other';
-            }
-
-            recordMeta.youtubeName = recordMeta.topicName;
-            recordMeta.filename = `${recordMeta.topicName}${postfix}`
-              .replace(/[/|\\]/gim, '|')
-              .replace(/\s+/gim, '_')
-              .trim();
-            recordMeta.filepath = buildVideoPath(
-              server.config.STORAGE_DIRPATH,
-              recordMeta.filename,
-              record.file_extension.toLowerCase(),
-            );
-            record.meta = recordMeta;
-
-            return this.storage.records
-              .add({
-                owner: query.owner,
-                eventId,
-                loadFromZoomState: loadStateEnum.ready,
-                loadToYoutubeState: loadStateEnum.ready,
-                data: record,
-              });
-          });
-
-          return Promise.all(preparedRecordsPromises)
-            .then(() => this.storage.events.update({
-              id: eventId,
-              state: processingStateEnum.processed,
-            }));
-        });
-    },
-  };
-
-  server.route(routeEvents);
+    handler: controller.events,
+  });
 
   return server;
 };
@@ -425,6 +210,7 @@ const initDatabase = async (server) => {
   const storage = {
     events: generateQB('events'),
     records: generateQB('records'),
+    youtubeClients: generateQB('youtube_clients'),
     tokens,
   };
 
@@ -469,6 +255,7 @@ const prepareDownloadTask = (server) => {
 };
 // eslint-disable-next-line
 const prepareYoutubeTask = (server) => {
+  // TODO: написать выбор клиента в зависимости от владельца файла
   // const itemsInProcessing = new Set();
   // let oauthClientInitialized = false;
   // const youtubeServices = new Map();
@@ -634,11 +421,15 @@ export const app = async (envName) => {
   });
 
   const config = await configValidator(envName);
-
   const server = initServer(config);
-
   const db = await initDatabase(server);
   const cronJobs = initTasks(server);
+
+  const youTubeClient = new YouTubeClient({
+    oauthRedirectURL: config.OAUTH_REDIRECT_URL,
+    storage: server.storage.youtubeClients,
+  });
+  server.decorate('youTubeClient', youTubeClient);
 
   const stop = async () => {
     server.log.info('Stop app', config);

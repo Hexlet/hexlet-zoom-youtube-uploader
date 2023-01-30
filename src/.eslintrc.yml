@@ -10,7 +10,7 @@ parserOptions:
   ecmaVersion: 13
   sourceType: module
 rules:
-  indent: ["error", 2]
+  indent: ["error", 2, { SwitchCase: 1 }]
   camelcase: off
   max-len: ["error", { code: 120, ignoreComments: true, ignoreTemplateLiterals: true }]
   no-await-in-loop: off
