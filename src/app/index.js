@@ -6,6 +6,7 @@ import fastify from 'fastify';
 import ms from 'ms';
 import sqlite3 from 'sqlite3';
 import * as sqlite from 'sqlite';
+import _ from 'lodash';
 // app
 import { configValidator } from '../utils/configValidator.js';
 // import { bodyFixture } from '../fixtures/fixture.mjs';
@@ -34,7 +35,7 @@ const initServer = (config) => {
     },
   });
 
-  config.OAUTH_REDIRECT_URL = `${config.DOMAIN}:${config.PORT}${oauthCallbackRoutePath}`;
+  config.OAUTH_REDIRECT_URL = `${config.DOMAIN}${oauthCallbackRoutePath}`;
 
   server.decorate('config', config);
 
@@ -114,13 +115,19 @@ const initDatabase = async (server) => {
 
       return db.all(select, where)
         .then((items) => items.map((item) => {
-          item.data = JSON.parse(item.data);
+          if (item.data) {
+            item.data = JSON.parse(item.data);
+          }
+
           return item;
         }));
     },
+    readOne: function readOne(where = {}) {
+      return this.read(where).then((results) => results[0]);
+    },
     update: (params) => {
       const { id, ...fields } = params;
-      if (typeof fields.data === 'object') {
+      if (_.isPlainObject(fields.data)) {
         fields.data = JSON.stringify(fields.data);
       }
       const columns = Object.keys(fields);
@@ -141,7 +148,9 @@ const initDatabase = async (server) => {
       );
     },
     add: (params) => {
-      params.data = JSON.stringify(params.data);
+      if (_.isPlainObject(params.data)) {
+        params.data = JSON.stringify(params.data);
+      }
       const columns = Object.keys(params);
       const placeholders = [];
       const insertions = columns.reduce((acc, key) => {
@@ -161,7 +170,7 @@ const initDatabase = async (server) => {
   const storage = {
     events: generateQB('events'),
     records: generateQB('records'),
-    youtubeClients: generateQB('youtube_clients'),
+    youtubeClients: generateQB('google_clients'),
   };
 
   server.decorate('storage', storage);

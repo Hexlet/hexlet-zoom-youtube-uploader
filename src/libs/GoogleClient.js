@@ -8,6 +8,7 @@ export class GoogleClient {
   }
 
   async get(owner) {
+    console.log('clientByOwnerMap', this.clientByOwnerMap.has(owner));
     return this.clientByOwnerMap.has(owner)
       ? this.clientByOwnerMap.get(owner)
       : this.findByOwner(owner);
@@ -24,7 +25,7 @@ export class GoogleClient {
   // private methods
 
   async findByOwner(owner) {
-    return this.storage.read({ owner })
+    return this.storage.readOne({ owner })
       .then((params) => (params ? this.build(params) : null))
       .then((client) => {
         if (!client) return null;
@@ -48,13 +49,17 @@ export class GoogleClient {
       ...(tokens ? { tokens: JSON.stringify(tokens) } : {}),
     };
 
-    return this.storage.read({ owner })
-      .then((savedParams) => (savedParams
-        ? this.storage.update({
-          id: savedParams.id,
-          ...params,
-        })
-        : this.storage.add(params)))
+    return this.storage.readOne({ owner })
+      .then((savedParams) => {
+        if (savedParams) {
+          return this.storage.update({
+            id: savedParams.id,
+            ...params,
+          }).then(() => savedParams)
+        }
+
+        return this.storage.add(params).then(() => params);
+      })
       .then((savedParams) => this.build(savedParams))
       .then((client) => {
         this.clientByOwnerMap.set(owner, client);
@@ -94,7 +99,7 @@ export class GoogleClient {
 
     const authURL = new URL(authorizationUrl);
     authURL.searchParams.set('state', JSON.stringify({ owner }));
-    client.oauth.prototype.authURL = authURL.toString();
+    client.oauth.authURL = authURL.toString();
 
     if (tokens) {
       client.oauth.setCredentials(typeof tokens === 'string' ? JSON.parse(tokens) : tokens);

@@ -8,6 +8,7 @@ import {
   makeUniqueName,
   buildVideoPath,
   processingStateEnum,
+  bodyFixture,
 } from '../utils/helpers.js';
 
 const { DateTime } = luxon;
@@ -24,11 +25,15 @@ export function reqister(req, res) {
 
   googleClientBodySchema
     .validate(body, { abortEarly: false, stripUnknown: true })
-    .then((params) => this.googleClient.save(params))
-    .then(() => res.redirect('/oauth2'))
+    .then((params) => this.googleClient.save(params).then(() => params))
+    .then((params) => {
+      const usp = new URLSearchParams();
+      usp.append('owner', params.owner);
+      res.send({ message: `Send GET-request to /oauth2?${usp.toString()}` });
+    })
     .catch((err) => res
       .code(constants.HTTP_STATUS_BAD_REQUEST)
-      .send(err.messages ? err.messages.join() : err.message));
+      .send({ message: err.errors ? err.errors.join() : err.message }));
 }
 
 export function oauth(req, res) {
@@ -36,7 +41,7 @@ export function oauth(req, res) {
   if (!(query && query.owner)) {
     res
       .code(constants.HTTP_STATUS_BAD_REQUEST)
-      .send('Channel owner required');
+      .send({ message: 'Channel owner required' });
   }
 
   this.googleClient
@@ -45,7 +50,7 @@ export function oauth(req, res) {
       if (googleClient === null) {
         return res
           .code(constants.HTTP_STATUS_FORBIDDEN)
-          .send('YouTube client was not registered');
+          .send({ message: 'YouTube client was not registered' });
       }
 
       return res.redirect(googleClient.oauth.authURL);
@@ -54,10 +59,10 @@ export function oauth(req, res) {
 
 export function oauthCallback(req, res) {
   if (!req.query || !req.query.code) {
-    return res.code(constants.HTTP_STATUS_BAD_REQUEST).send('Not found oauth code');
+    return res.code(constants.HTTP_STATUS_BAD_REQUEST).send({ message: 'Not found oauth code' });
   }
   if (!req.query.state) {
-    return res.code(constants.HTTP_STATUS_BAD_REQUEST).send('Not found oauth state');
+    return res.code(constants.HTTP_STATUS_BAD_REQUEST).send({ message: 'Not found oauth state' });
   }
 
   const { owner } = JSON.parse(req.query.state);
@@ -68,7 +73,7 @@ export function oauthCallback(req, res) {
       if (googleClient === null) {
         return res
           .code(constants.HTTP_STATUS_FORBIDDEN)
-          .send('YouTube client was not registered');
+          .send({ message: 'YouTube client was not registered' });
       }
 
       return googleClient
@@ -77,11 +82,11 @@ export function oauthCallback(req, res) {
           code: req.query.code,
         })
         .then(() => {
-          res.code(constants.HTTP_STATUS_OK).send('ok');
+          res.code(constants.HTTP_STATUS_OK).send({ message: 'ok' });
         })
         .catch((err) => {
           console.error(err);
-          res.code(constants.HTTP_STATUS_BAD_REQUEST).send(err.message);
+          res.code(constants.HTTP_STATUS_BAD_REQUEST).send({ message: err.message });
         });
     });
 }
@@ -89,11 +94,11 @@ export function oauthCallback(req, res) {
 export function events(req, res) {
   const { body, query } = req;
   if (!(query && query.owner)) {
-    return res.code(constants.HTTP_STATUS_BAD_REQUEST).send('Not found owner');
+    return res.code(constants.HTTP_STATUS_BAD_REQUEST).send({ message: 'Not found owner' });
   }
   const { owner } = query;
   // const data = this.config.IS_DEV_ENV ? bodyFixture : body;
-  const data = this.config.IS_DEV_ENV ? { payload: { object: { recording_files: [] } } } : body;
+  const data = body;
   const {
     topic,
     duration,
@@ -118,12 +123,12 @@ export function events(req, res) {
       data,
     })
     .then((db) => {
-      res.code(constants.HTTP_STATUS_OK).send('ok');
+      res.code(constants.HTTP_STATUS_OK).send({ message: 'ok' });
       return db;
     })
     .catch((err) => {
       console.error(err);
-      res.code(constants.HTTP_STATUS_BAD_REQUEST).send(err.message);
+      res.code(constants.HTTP_STATUS_BAD_REQUEST).send({ message: err.message });
     })
     .then(({ lastID: eventId } = {}) => {
       if (!eventId || (state === processingStateEnum.rejected)) return true;

@@ -34,8 +34,6 @@ const configSchema = yup.object({
   ROUTE_UUID: yup.string().required(),
   CRON_PERIOD: yup.string().required(),
   CRON_DELAY: yup.string().required(),
-  YOUTUBE_CLIENT_ID: yup.string().required(),
-  YOUTUBE_CLIENT_SECRET: yup.string().required(),
   STORAGE_DIRPATH: yup.string()
     .transform((__, paths) => path.resolve(__dirname, ...paths.split(',')))
     .required(),
