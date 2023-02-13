@@ -12,7 +12,7 @@ parserOptions:
 rules:
   indent: ["error", 2, { SwitchCase: 1 }]
   camelcase: off
-    max-len: ["error", {
+  max-len: ["error", {
     "code": 120,
     "ignoreComments": true,
     "ignoreTrailingComments": true,

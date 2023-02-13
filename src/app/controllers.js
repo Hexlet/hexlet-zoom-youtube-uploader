@@ -8,7 +8,7 @@ import {
   makeUniqueName,
   buildVideoPath,
   processingStateEnum,
-  bodyFixture,
+  // bodyFixture,
 } from '../utils/helpers.js';
 
 const { DateTime } = luxon;
@@ -46,14 +46,14 @@ export function oauth(req, res) {
 
   this.googleClient
     .get(query.owner)
-    .then((googleClient) => {
-      if (googleClient === null) {
+    .then((service) => {
+      if (service === null) {
         return res
           .code(constants.HTTP_STATUS_FORBIDDEN)
           .send({ message: 'YouTube client was not registered' });
       }
 
-      return res.redirect(googleClient.oauth.authURL);
+      return res.redirect(service.oauth.authURL);
     });
 }
 
@@ -69,14 +69,14 @@ export function oauthCallback(req, res) {
 
   return this.googleClient
     .get(owner)
-    .then((googleClient) => {
-      if (googleClient === null) {
+    .then((service) => {
+      if (service === null) {
         return res
           .code(constants.HTTP_STATUS_FORBIDDEN)
           .send({ message: 'YouTube client was not registered' });
       }
 
-      return googleClient
+      return this.googleClient
         .authorize({
           owner,
           code: req.query.code,
@@ -122,96 +122,95 @@ export function events(req, res) {
       state,
       data,
     })
-    .then((db) => {
-      res.code(constants.HTTP_STATUS_OK).send({ message: 'ok' });
-      return db;
-    })
     .catch((err) => {
       console.error(err);
       res.code(constants.HTTP_STATUS_BAD_REQUEST).send({ message: err.message });
     })
     .then(({ lastID: eventId } = {}) => {
-      if (!eventId || (state === processingStateEnum.rejected)) return true;
+      const isFailedOperation = (!eventId || (state === processingStateEnum.rejected));
+      if (!isFailedOperation) {
+        res.code(constants.HTTP_STATUS_OK).send({ message: 'ok' });
 
-      const preparedTopic = topic.trim().replace(' ', '');
-      const parsedTopic = parseTopic(preparedTopic);
+        const preparedTopic = topic.trim().replace(' ', '');
+        const parsedTopic = parseTopic(preparedTopic);
 
-      const makeMeta = () => ({
-        isHexletTopic: (parsedTopic.type === topicEnum.hexlet),
-        isCollegeTopic: (parsedTopic.type === topicEnum.college),
-        date: DateTime.fromISO(start_time).setZone('Europe/Moscow').toFormat('dd.LL.yyyy'),
-        topicType: parsedTopic.type,
-        topicName: '',
-        topicAuthor: '',
-        topicPotok: '',
-        filename: '',
-        filepath: '',
-        youtubeDescription: '',
-        youtubeName: '',
-        youtubePlaylist: '',
-        youtubeUrl: '',
-        zoomAuthorId: account_id,
-      });
+        const makeMeta = () => ({
+          isHexletTopic: (parsedTopic.type === topicEnum.hexlet),
+          isCollegeTopic: (parsedTopic.type === topicEnum.college),
+          date: DateTime.fromISO(start_time).setZone('Europe/Moscow').toFormat('dd.LL.yyyy'),
+          topicType: parsedTopic.type,
+          topicName: '',
+          topicAuthor: '',
+          topicPotok: '',
+          filename: '',
+          filepath: '',
+          youtubeDescription: '',
+          youtubeName: '',
+          youtubePlaylist: '',
+          youtubeUrl: '',
+          zoomAuthorId: account_id,
+        });
 
-      const preparedRecordsPromises = videoRecords.map((record) => {
-        const recordMeta = makeMeta();
-        record.download_token = data.download_token;
+        const preparedRecordsPromises = videoRecords.map((record) => {
+          const recordMeta = makeMeta();
+          record.download_token = data.download_token;
 
-        switch (recordMeta.topicType) {
-          case topicEnum.college:
-          case topicEnum.hexlet: {
-            const {
-              theme, tutor, potok,
-            } = parsedTopic;
-            recordMeta.topicName = makeUniqueName();
-            recordMeta.topicAuthor = tutor;
-            recordMeta.topicPotok = potok;
-            recordMeta.youtubePlaylist = potok;
+          switch (recordMeta.topicType) {
+            case topicEnum.college:
+            case topicEnum.hexlet: {
+              const {
+                theme, tutor, potok,
+              } = parsedTopic;
+              recordMeta.topicName = makeUniqueName();
+              recordMeta.topicAuthor = tutor;
+              recordMeta.topicPotok = potok;
+              recordMeta.youtubePlaylist = potok;
 
-            recordMeta.youtubeDescription = [
-              `* Полное название: ${theme}`,
-              `* Дата: ${recordMeta.date}`,
-              tutor ? `* Автор: ${tutor}` : '',
-              `* Поток: ${potok}`,
-              `* Источник id: ${recordMeta.zoomAuthorId}`,
-            ].filter((x) => x).join('\n');
-            break;
+              recordMeta.youtubeDescription = [
+                `* Полное название: ${theme}`,
+                `* Дата: ${recordMeta.date}`,
+                tutor ? `* Автор: ${tutor}` : '',
+                `* Поток: ${potok}`,
+                `* Источник id: ${recordMeta.zoomAuthorId}`,
+              ].filter((x) => x).join('\n');
+              break;
+            }
+            default: {
+              recordMeta.topicName = makeUniqueName();
+              recordMeta.youtubePlaylist = 'Other';
+
+              recordMeta.youtubeDescription = [
+                `* Полное название: ${preparedTopic}`,
+                `* Дата: ${recordMeta.date}`,
+                `* Источник id: ${recordMeta.zoomAuthorId}`,
+              ].join('\n');
+            }
           }
-          default: {
-            recordMeta.topicName = makeUniqueName();
-            recordMeta.youtubePlaylist = 'Other';
 
-            recordMeta.youtubeDescription = [
-              `* Полное название: ${preparedTopic}`,
-              `* Дата: ${recordMeta.date}`,
-              `* Источник id: ${recordMeta.zoomAuthorId}`,
-            ].join('\n');
-          }
-        }
+          recordMeta.youtubeName = recordMeta.topicName;
+          recordMeta.filename = recordMeta.topicName;
+          recordMeta.filepath = buildVideoPath(
+            this.config.STORAGE_DIRPATH,
+            recordMeta.filename,
+            record.file_extension.toLowerCase(),
+          );
+          record.meta = recordMeta;
 
-        recordMeta.youtubeName = recordMeta.topicName;
-        recordMeta.filename = recordMeta.topicName;
-        recordMeta.filepath = buildVideoPath(
-          this.config.STORAGE_DIRPATH,
-          recordMeta.filename,
-          record.file_extension.toLowerCase(),
-        );
-        record.meta = recordMeta;
+          return this.storage.records
+            .add({
+              owner,
+              eventId,
+              loadFromZoomState: loadStateEnum.ready,
+              loadToYoutubeState: loadStateEnum.ready,
+              data: record,
+            });
+        });
 
-        return this.storage.records
-          .add({
-            owner,
-            eventId,
-            loadFromZoomState: loadStateEnum.ready,
-            loadToYoutubeState: loadStateEnum.ready,
-            data: record,
-          });
-      });
-
-      return Promise.all(preparedRecordsPromises)
-        .then(() => this.storage.events.update({
-          id: eventId,
-          state: processingStateEnum.processed,
-        }));
+        Promise.all(preparedRecordsPromises)
+          .then(() => this.storage.events.update({
+            id: eventId,
+            state: processingStateEnum.processed,
+          }));
+      }
     });
 }

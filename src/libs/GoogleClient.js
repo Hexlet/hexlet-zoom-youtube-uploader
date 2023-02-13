@@ -8,7 +8,6 @@ export class GoogleClient {
   }
 
   async get(owner) {
-    console.log('clientByOwnerMap', this.clientByOwnerMap.has(owner));
     return this.clientByOwnerMap.has(owner)
       ? this.clientByOwnerMap.get(owner)
       : this.findByOwner(owner);
@@ -55,7 +54,7 @@ export class GoogleClient {
           return this.storage.update({
             id: savedParams.id,
             ...params,
-          }).then(() => savedParams)
+          }).then(() => savedParams);
         }
 
         return this.storage.add(params).then(() => params);

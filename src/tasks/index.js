@@ -42,7 +42,7 @@ export const prepareDownloadTask = (server) => {
 export const prepareYoutubeTask = (server) => {
   const itemsInProcessing = new Set();
   let oauthClientInitialized = false;
-  const youtubeServices = new Map();
+  // const youtubeServices = new Map();
   const playlistIdMap = new Map();
 
   const getPlayLists = (yt, pageToken = undefined) => yt.playlists
@@ -63,44 +63,44 @@ export const prepareYoutubeTask = (server) => {
       return true;
     });
 
-  const createPlaylist = (yt, title) => yt.playlists
-    .insert({
-      part: ['id', 'snippet', 'status'],
-      requestBody: {
-        snippet: {
-          title,
-        },
-        status: {
-          privacyStatus: 'unlisted',
-        },
-      },
-    })
-    .then((res) => {
-      playlistIdMap.set(res.data.snippet.title, res.data.id);
-    });
+  // const createPlaylist = (yt, title) => yt.playlists
+  //   .insert({
+  //     part: ['id', 'snippet', 'status'],
+  //     requestBody: {
+  //       snippet: {
+  //         title,
+  //       },
+  //       status: {
+  //         privacyStatus: 'unlisted',
+  //       },
+  //     },
+  //   })
+  //   .then((res) => {
+  //     playlistIdMap.set(res.data.snippet.title, res.data.id);
+  //   });
 
-  const addToPlaylist = (yt, { youtubePlaylist, videoId }) => {
-    const playlistId = playlistIdMap.get(youtubePlaylist);
+  // const addToPlaylist = (yt, { youtubePlaylist, videoId }) => {
+  //   const playlistId = playlistIdMap.get(youtubePlaylist);
 
-    return yt.playlistItems
-      .insert({
-        part: ['id', 'snippet'],
-        requestBody: {
-          snippet: {
-            playlistId,
-            resourceId: {
-              kind: 'youtube#video',
-              videoId,
-            },
-          },
-        },
-      });
-  };
+  //   return yt.playlistItems
+  //     .insert({
+  //       part: ['id', 'snippet'],
+  //       requestBody: {
+  //         snippet: {
+  //           playlistId,
+  //           resourceId: {
+  //             kind: 'youtube#video',
+  //             videoId,
+  //           },
+  //         },
+  //       },
+  //     });
+  // };
 
-  const insertToPlaylist = (youtubeService, { youtubePlaylist, videoId }) => (playlistIdMap.has(youtubePlaylist)
-    ? addToPlaylist(youtubeService, { youtubePlaylist, videoId })
-    : createPlaylist(youtubeService, youtubePlaylist)
-      .then(() => addToPlaylist(youtubeService, { youtubePlaylist, videoId })));
+  // const insertToPlaylist = (youtubeService, { youtubePlaylist, videoId }) => (playlistIdMap.has(youtubePlaylist)
+  //   ? addToPlaylist(youtubeService, { youtubePlaylist, videoId })
+  //   : createPlaylist(youtubeService, youtubePlaylist)
+  //     .then(() => addToPlaylist(youtubeService, { youtubePlaylist, videoId })));
 
   return () => {
     if (!oauthClientInitialized) {
@@ -110,10 +110,10 @@ export const prepareYoutubeTask = (server) => {
           if (!isEmpty) {
             server.oauthClient.setCredentials(tokens);
 
-            youtubeService = google.youtube({
-              version: 'v3',
-              auth: server.oauthClient,
-            });
+            // youtubeService = google.youtube({
+            //   version: 'v3',
+            //   auth: server.oauthClient,
+            // });
 
             oauthClientInitialized = true;
 
@@ -143,45 +143,46 @@ export const prepareYoutubeTask = (server) => {
             return server.storage.records.update(item);
           }
 
-          return youtubeService.videos
-            .insert({
-              part: ['id', 'snippet', 'contentDetails', 'status'],
-              notifySubscribers: false,
-              requestBody: {
-                snippet: {
-                  title: data.meta.youtubeName,
-                  description: data.meta.youtubeDescription,
-                },
-                status: {
-                  privacyStatus: 'unlisted',
-                },
-              },
-              media: {
-                body: fs.createReadStream(data.meta.filepath),
-              },
-            })
-            .catch((err) => {
-              console.error(err);
-              item.loadToYoutubeError = err.message;
-              item.loadToYoutubeState = loadStateEnum.failed;
-            })
-            .then((res) => {
-              if (item.loadToYoutubeState !== loadStateEnum.failed) {
-                item.loadToYoutubeState = loadStateEnum.success;
-                data.meta.youtubeUrl = `https://youtu.be/${res.data.id}`;
-              }
-              return server.storage.records.update(item)
-                .then(() => res.data.id);
-            })
-            .then((videoId) => {
-              if (item.loadToYoutubeState !== loadStateEnum.failed) {
-                return insertToPlaylist({
-                  videoId,
-                  youtubePlaylist: data.meta.youtubePlaylist,
-                });
-              }
-              return true;
-            });
+          return Promise.resolve();
+          // return youtubeService.videos
+          //   .insert({
+          //     part: ['id', 'snippet', 'contentDetails', 'status'],
+          //     notifySubscribers: false,
+          //     requestBody: {
+          //       snippet: {
+          //         title: data.meta.youtubeName,
+          //         description: data.meta.youtubeDescription,
+          //       },
+          //       status: {
+          //         privacyStatus: 'unlisted',
+          //       },
+          //     },
+          //     media: {
+          //       body: fs.createReadStream(data.meta.filepath),
+          //     },
+          //   })
+          //   .catch((err) => {
+          //     console.error(err);
+          //     item.loadToYoutubeError = err.message;
+          //     item.loadToYoutubeState = loadStateEnum.failed;
+          //   })
+          //   .then((res) => {
+          //     if (item.loadToYoutubeState !== loadStateEnum.failed) {
+          //       item.loadToYoutubeState = loadStateEnum.success;
+          //       data.meta.youtubeUrl = `https://youtu.be/${res.data.id}`;
+          //     }
+          //     return server.storage.records.update(item)
+          //       .then(() => res.data.id);
+          //   })
+          //   .then((videoId) => {
+          //     if (item.loadToYoutubeState !== loadStateEnum.failed) {
+          //       return insertToPlaylist({
+          //         videoId,
+          //         youtubePlaylist: data.meta.youtubePlaylist,
+          //       });
+          //     }
+          //     return true;
+          //   });
         });
 
         return Promise.all(loadPromises);

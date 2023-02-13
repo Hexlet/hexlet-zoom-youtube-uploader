@@ -150,7 +150,7 @@ export const bodyFixture = {
       uuid: '4444AAAiAAAAAiAiAiiAii==',
       host_id: 'x1yCzABCDEfg23HiJKl4mN',
       account_id: 'x1yCzABCDEfg23HiJKl4mN',
-      topic: 'My Personal Recording',
+      topic: 'Название активности;Имя Фамилия;potok-1',
       type: 4,
       start_time: '2021-07-13T21:44:51Z',
       timezone: 'America/Los_Angeles',
