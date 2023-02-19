@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { constants } from 'http2';
 // fastify
 import fastify from 'fastify';
 // libs
@@ -7,6 +8,7 @@ import ms from 'ms';
 import sqlite3 from 'sqlite3';
 import * as sqlite from 'sqlite';
 import _ from 'lodash';
+import { ValidationError } from 'yup';
 // app
 import { configValidator } from '../utils/configValidator.js';
 // import { bodyFixture } from '../fixtures/fixture.mjs';
@@ -43,36 +45,96 @@ const initServer = (config) => {
 
   server.decorate('config', config);
 
+  server.setErrorHandler((err, req, res) => {
+    server.log.debug(err);
+
+    const isValidationError = err instanceof ValidationError;
+    const message = err.message || 'Unknown error';
+    const statusCode = isValidationError
+      ? constants.HTTP_STATUS_BAD_REQUEST
+      : err.statusCode || constants.HTTP_STATUS_INTERNAL_SERVER_ERROR;
+    const params = isValidationError
+      ? err.errors
+      : err.params || {};
+
+    res.code(statusCode).send({ message, params });
+  });
+
   server.route({
     method: 'GET',
     url: '/',
     handler(req, res) {
-      res.code(200).send('Hi!');
+      res.code(constants.HTTP_STATUS_OK).send('Hi!');
     },
   });
 
   server.route({
     method: 'POST',
     url: '/oauth2',
-    handler: controller.reqister,
+    handler(req, res) {
+      const data = {
+        body: req.body || {},
+        query: req.query || {},
+      };
+      const action = controller.reqister.bind(server);
+
+      return action(data)
+        .then((result) => {
+          const message = result && result.message ? result.message : result.toString();
+          const params = result && result.params ? result.params : {};
+          return res.code(constants.HTTP_STATUS_OK).send({ message, params });
+        });
+    },
   });
 
   server.route({
     method: 'GET',
     url: '/oauth2',
-    handler: controller.oauth,
+    handler(req, res) {
+      const data = {
+        body: req.body || {},
+        query: req.query || {},
+      };
+      const action = controller.oauth.bind(server);
+
+      return action(data)
+        .then((authURL) => res.redirect(authURL));
+    },
   });
 
   server.route({
     method: 'GET',
     url: `${oauthCallbackRoutePath}`,
-    handler: controller.oauthCallback,
+    handler(req, res) {
+      const data = {
+        body: req.body || {},
+        query: req.query || {},
+      };
+      const action = controller.oauthCallback.bind(server);
+
+      return action(data)
+        .then((result) => {
+          const message = result && result.message ? result.message : result.toString();
+          const params = result && result.params ? result.params : {};
+          return res.code(constants.HTTP_STATUS_OK).send({ message, params });
+        });
+    },
   });
 
   server.route({
     method: 'POST',
     url: `/${config.ROUTE_UUID}`,
-    handler: controller.events,
+    handler(req, res) {
+      const data = {
+        body: req.body || {},
+        query: req.query || {},
+      };
+      const action = controller.events.bind(server);
+
+      return action(data, (message) => {
+        res.code(constants.HTTP_STATUS_OK).send({ message, params: {} });
+      });
+    },
   });
 
   return server;
