@@ -1,6 +1,7 @@
 .terraform
 *.backup
 *.tfvars
+*.DS_Store
 
 # Logs
 logs
