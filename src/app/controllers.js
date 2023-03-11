@@ -1,4 +1,3 @@
-import { constants } from 'http2';
 import * as luxon from 'luxon';
 import yup from 'yup';
 import {
@@ -43,7 +42,7 @@ export async function oauth(data) {
   }
 
   return this.googleClient
-    .get(query.owner)
+    .getBy({ owner: query.owner })
     .then((service) => {
       if (service === null) {
         throw new ForbiddenError('YouTube client was not registered');
@@ -65,7 +64,7 @@ export async function oauthCallback(data) {
   const { owner } = JSON.parse(query.state);
 
   return this.googleClient
-    .get(owner)
+    .getBy({ owner })
     .then((service) => {
       if (service === null) {
         throw new ForbiddenError('YouTube client was not registered');
@@ -114,7 +113,8 @@ export async function events(req, sendResponse) {
     .then(({ lastID: eventId } = {}) => {
       const isFailedOperation = (!eventId || (state === processingStateEnum.rejected));
       if (isFailedOperation) {
-        return sendResponse('Videos is too short or not found');
+        sendResponse('Videos is too short or not found');
+        return;
       }
       sendResponse('All done');
 
@@ -193,7 +193,7 @@ export async function events(req, sendResponse) {
           });
       });
 
-      return Promise.all(preparedRecordsPromises)
+      Promise.all(preparedRecordsPromises)
         .then(() => this.storage.events.update({
           id: eventId,
           state: processingStateEnum.processed,

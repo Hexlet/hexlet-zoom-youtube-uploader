@@ -17,7 +17,7 @@ import { GoogleClient } from '../libs/GoogleClient.js';
 import {
   buildVideoPath,
   buildDataPath,
-  oauthCallbackRoutePath,
+  routeEnum,
 } from '../utils/helpers.js';
 // import {
 //   prepareDownloadTask,
@@ -41,7 +41,8 @@ const initServer = (config) => {
     },
   });
 
-  config.OAUTH_REDIRECT_URL = `${config.DOMAIN}${oauthCallbackRoutePath}`;
+  routeEnum.events.url = `/${config.ROUTE_UUID}`;
+  config.OAUTH_REDIRECT_URL = `${config.DOMAIN}${routeEnum.oauthCallback.url}`;
 
   server.decorate('config', config);
 
@@ -60,17 +61,27 @@ const initServer = (config) => {
     res.code(statusCode).send({ message, params });
   });
 
+  server.setNotFoundHandler((req, res) => {
+    server.log.debug(req);
+    res
+      .code(constants.HTTP_STATUS_NOT_FOUND)
+      .send({
+        message: `Route ${req.method} ${req.url} not found`,
+        params: {},
+      });
+  });
+
   server.route({
-    method: 'GET',
-    url: '/',
+    method: routeEnum.main.method,
+    url: `${routeEnum.prefix}/v1${routeEnum.main.url}`,
     handler(req, res) {
-      res.code(constants.HTTP_STATUS_OK).send('Hi!');
+      res.code(constants.HTTP_STATUS_OK).send({ message: 'Hi!', params: {} });
     },
   });
 
   server.route({
-    method: 'POST',
-    url: '/oauth2',
+    method: routeEnum.register.method,
+    url: `${routeEnum.prefix}/v1${routeEnum.register.url}`,
     handler(req, res) {
       const data = {
         body: req.body || {},
@@ -88,8 +99,8 @@ const initServer = (config) => {
   });
 
   server.route({
-    method: 'GET',
-    url: '/oauth2',
+    method: routeEnum.oauth.method,
+    url: `${routeEnum.prefix}/v1${routeEnum.oauth.url}`,
     handler(req, res) {
       const data = {
         body: req.body || {},
@@ -103,8 +114,8 @@ const initServer = (config) => {
   });
 
   server.route({
-    method: 'GET',
-    url: `${oauthCallbackRoutePath}`,
+    method: routeEnum.oauthCallback.method,
+    url: `${routeEnum.prefix}/v1${routeEnum.oauthCallback.url}`,
     handler(req, res) {
       const data = {
         body: req.body || {},
@@ -122,8 +133,8 @@ const initServer = (config) => {
   });
 
   server.route({
-    method: 'POST',
-    url: `/${config.ROUTE_UUID}`,
+    method: routeEnum.events.method,
+    url: `${routeEnum.prefix}/v1${routeEnum.events.url}`,
     handler(req, res) {
       const data = {
         body: req.body || {},
@@ -255,7 +266,9 @@ const initTasks = (server) => [
 
 export const app = async (envName) => {
   process.on('unhandledRejection', (err) => {
-    console.error(err);
+    if (!envName.toLowerCase().includes('test')) {
+      console.error(err);
+    }
     process.exit(1);
   });
 

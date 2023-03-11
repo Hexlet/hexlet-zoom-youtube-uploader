@@ -9,6 +9,7 @@ const envsMap = {
   prod: 'production',
   dev: 'development',
   test: 'test',
+  invalid: 'invalid',
 };
 
 const readFromFile = (configPath) => dotenv.config({
@@ -18,6 +19,7 @@ const envConfigMap = {
   [envsMap.prod]: readFromFile('.env'),
   [envsMap.dev]: readFromFile('development.env'),
   [envsMap.test]: readFromFile('test.config'),
+  [envsMap.invalid]: readFromFile('invalid.config'),
 };
 
 const checkEnv = (expected) => (current, schema) => schema.default(current === expected);
@@ -47,7 +49,6 @@ export const configValidator = (envName) => {
   return configSchema
     .validate(envConfig, { abortEarly: false })
     .catch((err) => {
-      console.error(err);
       throw new ConfigValidationError(err);
     });
 };

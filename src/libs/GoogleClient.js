@@ -1,4 +1,109 @@
+/* eslint-disable max-classes-per-file */
+
+import fs from 'fs';
 import { google } from 'googleapis';
+import { AppError } from '../utils/errors.js';
+
+class YoutubeClient {
+  static isNotClient = false;
+
+  constructor(client) {
+    if (!client) {
+      throw new AppError('Empty Google client for Youtube client');
+    }
+    this.client = client;
+    this.playlistIdMap = new Map([]);
+  }
+
+  async getPlayLists() {
+    if (this.playlistIdMap.size > 0) {
+      return this.playlistIdMap;
+    }
+
+    const loadPlayLists = (pageToken = undefined) => this.client.playlists
+      .list({
+        part: ['id', 'snippet'],
+        maxResults: 50,
+        channelId: this.client.channelId,
+        pageToken,
+      })
+      .then((res) => {
+        res.data.items.forEach((item) => {
+          this.playlistIdMap.set(item.snippet.title, item.id);
+        });
+        if (res.data.nextPageToken) {
+          return loadPlayLists(res.data.nextPageToken);
+        }
+
+        return true;
+      });
+
+    return loadPlayLists();
+  }
+
+  async createPlaylist({ title }) {
+    return this.clientyt.playlists
+      .insert({
+        part: ['id', 'snippet', 'status'],
+        requestBody: {
+          snippet: {
+            title,
+          },
+          status: {
+            privacyStatus: 'unlisted',
+          },
+        },
+      })
+      .then((res) => {
+        this.playlistIdMap.set(res.data.snippet.title, res.data.id);
+      });
+  }
+
+  async addToPlaylist({ title, videoId }) {
+    const playlistId = this.playlistIdMap.get(title);
+
+    return this.client.playlistItems
+      .insert({
+        part: ['id', 'snippet'],
+        requestBody: {
+          snippet: {
+            playlistId,
+            resourceId: {
+              kind: 'youtube#video',
+              videoId,
+            },
+          },
+        },
+      });
+  }
+
+  async insertToPlaylist({ title, videoId }) {
+    return this.playlistIdMap.has(title)
+      ? this.addToPlaylist({ title, videoId })
+      : this.createPlaylist({ title })
+        .then(() => this.addToPlaylist({ title, videoId }));
+  }
+
+  async uploadVideo({ title, description, filepath }) {
+    return this.client.videos
+      .insert({
+        part: ['id', 'snippet', 'contentDetails', 'status'],
+        notifySubscribers: false,
+        requestBody: {
+          snippet: {
+            title,
+            description,
+          },
+          status: {
+            privacyStatus: 'unlisted',
+          },
+        },
+        media: {
+          body: fs.createReadStream(filepath),
+        },
+      });
+  }
+}
 
 export class GoogleClient {
   constructor({ oauthRedirectURL, storage }) {
@@ -7,19 +112,17 @@ export class GoogleClient {
     this.clientByOwnerMap = new Map([]);
   }
 
-  async get(owner) {
+  async getBy({ owner }) {
     return this.clientByOwnerMap.has(owner)
       ? this.clientByOwnerMap.get(owner)
       : this.findByOwner(owner);
   }
 
   async authorize({ owner, code }) {
-    return this.get(owner)
+    return this.getBy({ owner })
       .then((client) => client.oauth.getToken(code))
       .then(({ tokens }) => this.save({ owner, tokens }));
   }
-
-  // TODO: перенести сюда getPlayLists и другие методы
 
   // private methods
 
@@ -103,10 +206,14 @@ export class GoogleClient {
     if (tokens) {
       client.oauth.setCredentials(typeof tokens === 'string' ? JSON.parse(tokens) : tokens);
 
-      client.youtube = google.youtube({
+      const youtubeClient = google.youtube({
         version: 'v3',
         auth: client.oauth,
       });
+
+      youtubeClient.channelId = channel_id;
+
+      client.youtube = new YoutubeClient(youtubeClient);
     }
 
     return client;

@@ -4,7 +4,6 @@ import { fileURLToPath } from 'url';
 import axios from 'axios';
 
 export const __dirname = path.dirname(fileURLToPath(import.meta.url));
-export const oauthCallbackRoutePath = '/oauth2callback';
 
 const arrToEnum = (arr) => Object.freeze(arr.reduce((acc, state) => {
   acc[state] = state;
@@ -14,6 +13,29 @@ const arrToEnum = (arr) => Object.freeze(arr.reduce((acc, state) => {
 export const processingStateEnum = arrToEnum(['ready', 'processed', 'rejected']);
 export const loadStateEnum = arrToEnum(['ready', 'success', 'failed']);
 export const topicEnum = arrToEnum(['other', 'hexlet', 'college']);
+export const routeEnum = {
+  prefix: '/api',
+  main: {
+    method: 'GET',
+    url: '/',
+  },
+  events: {
+    method: 'POST',
+    url: '',
+  },
+  register: {
+    method: 'POST',
+    url: '/oauth2',
+  },
+  oauth: {
+    method: 'GET',
+    url: '/oauth2',
+  },
+  oauthCallback: {
+    method: 'GET',
+    url: '/oauth2callback',
+  },
+};
 
 export const parseTopic = (topic) => {
   const parts = topic.split(';').map((item) => item.trim());
