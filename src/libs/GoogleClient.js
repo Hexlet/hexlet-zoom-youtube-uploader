@@ -7,11 +7,12 @@ import { AppError } from '../utils/errors.js';
 class YoutubeClient {
   static isNotClient = false;
 
-  constructor(client) {
+  constructor(client, channelId) {
     if (!client) {
       throw new AppError('Empty Google client for Youtube client');
     }
     this.client = client;
+    this.channelId = channelId;
     this.playlistIdMap = new Map([]);
   }
 
@@ -24,7 +25,7 @@ class YoutubeClient {
       .list({
         part: ['id', 'snippet'],
         maxResults: 50,
-        channelId: this.client.channelId,
+        channelId: this.channelId,
         pageToken,
       })
       .then((res) => {
@@ -42,7 +43,7 @@ class YoutubeClient {
   }
 
   async createPlaylist({ title }) {
-    return this.clientyt.playlists
+    return this.client.playlists
       .insert({
         part: ['id', 'snippet', 'status'],
         requestBody: {
@@ -211,9 +212,7 @@ export class GoogleClient {
         auth: client.oauth,
       });
 
-      youtubeClient.channelId = channel_id;
-
-      client.youtube = new YoutubeClient(youtubeClient);
+      client.youtube = new YoutubeClient(youtubeClient, channel_id);
     }
 
     return client;

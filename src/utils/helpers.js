@@ -13,6 +13,10 @@ const arrToEnum = (arr) => Object.freeze(arr.reduce((acc, state) => {
 export const processingStateEnum = arrToEnum(['ready', 'processed', 'rejected']);
 export const loadStateEnum = arrToEnum(['ready', 'success', 'failed']);
 export const topicEnum = arrToEnum(['other', 'hexlet', 'college']);
+export const incomingEventEnum = Object.freeze({
+  validation: 'endpoint.url_validation',
+  recording: 'recording.completed',
+});
 export const routeEnum = {
   prefix: '/api',
   main: {

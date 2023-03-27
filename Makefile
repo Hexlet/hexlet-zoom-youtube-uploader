@@ -7,11 +7,11 @@ build:
 	cd dist && NODE_ENV=production npm ci
 
 deploy:
-	ssh $(REMOTE) 'cd /root/app && make stop-node'
-	rsync -avz --progress -e 'ssh' ./dist/ $(REMOTE):/root/app
+	ssh -i ~/.ssh/id_rsa_hexlet $(REMOTE) 'cd /root/app && make stop-node'
+	rsync -avz --progress -e 'ssh -i ~/.ssh/id_rsa_hexlet' ./dist/ $(REMOTE):/root/app
 
 remote:
-	ssh $(REMOTE)
+	ssh -i ~/.ssh/id_rsa_hexlet $(REMOTE)
 
 dev:
 	cd src && make dev

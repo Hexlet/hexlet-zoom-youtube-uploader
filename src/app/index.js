@@ -19,10 +19,10 @@ import {
   buildDataPath,
   routeEnum,
 } from '../utils/helpers.js';
-// import {
-//   prepareDownloadTask,
-//   prepareYoutubeTask,
-// } from '../tasks/index.js';
+import {
+  prepareDownloadTask,
+  prepareYoutubeTask,
+} from '../tasks/index.js';
 import * as controller from './controllers.js';
 
 const initServer = (config) => {
@@ -115,7 +115,7 @@ const initServer = (config) => {
 
   server.route({
     method: routeEnum.oauthCallback.method,
-    url: `${routeEnum.prefix}/v1${routeEnum.oauthCallback.url}`,
+    url: `${routeEnum.oauthCallback.url}`,
     handler(req, res) {
       const data = {
         body: req.body || {},
@@ -142,8 +142,8 @@ const initServer = (config) => {
       };
       const action = controller.events.bind(server);
 
-      return action(data, (message) => {
-        res.code(constants.HTTP_STATUS_OK).send({ message, params: {} });
+      return action(data, (result) => {
+        res.code(constants.HTTP_STATUS_OK).send(result);
       });
     },
   });
@@ -256,8 +256,8 @@ const initDatabase = async (server) => {
 };
 
 const initTasks = (server) => [
-  // prepareDownloadTask(server),
-  // prepareYoutubeTask(server),
+  prepareDownloadTask(server),
+  prepareYoutubeTask(server),
 ].map((task) => new CronService(
   task,
   ms(server.config.CRON_PERIOD),

@@ -36,6 +36,7 @@ const configSchema = yup.object({
   ROUTE_UUID: yup.string().required(),
   CRON_PERIOD: yup.string().required(),
   CRON_DELAY: yup.string().required(),
+  ZOOM_WEBHOOK_SECRET_TOKEN: yup.string().required(),
   STORAGE_DIRPATH: yup.string()
     .transform((__, paths) => path.resolve(__dirname, ...paths.split(',')))
     .required(),
