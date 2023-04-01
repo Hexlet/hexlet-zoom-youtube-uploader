@@ -21,7 +21,7 @@ export const routeEnum = {
   prefix: '/api',
   main: {
     method: 'GET',
-    url: '/',
+    url: '',
   },
   events: {
     method: 'POST',

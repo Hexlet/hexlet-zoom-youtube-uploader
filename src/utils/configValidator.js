@@ -22,7 +22,7 @@ const envConfigMap = {
   [envsMap.invalid]: readFromFile('invalid.config'),
 };
 
-const checkEnv = (expected) => (current, schema) => schema.default(current === expected);
+const checkEnv = (expected) => ([current], schema) => schema.default(current === expected);
 
 const configSchema = yup.object({
   NODE_ENV: yup.string().oneOf(_.values(envsMap)).required(),
@@ -37,6 +37,7 @@ const configSchema = yup.object({
   CRON_PERIOD: yup.string().required(),
   CRON_DELAY: yup.string().required(),
   ZOOM_WEBHOOK_SECRET_TOKEN: yup.string().required(),
+  SENTRY_DSN: yup.string().required(),
   STORAGE_DIRPATH: yup.string()
     .transform((__, paths) => path.resolve(__dirname, ...paths.split(',')))
     .required(),

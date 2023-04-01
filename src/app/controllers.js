@@ -81,11 +81,8 @@ export async function oauthCallback(data) {
     });
 }
 
-export async function events(req, sendResponse) {
+export async function events(req) {
   const { body, query } = req;
-  if (!Object.values(incomingEventEnum).includes(body.event)) {
-    throw new BadRequestError('Unknown event type');
-  }
   if (!query.owner) {
     throw new BadRequestError('Channel owner required');
   }
@@ -97,11 +94,10 @@ export async function events(req, sendResponse) {
       .update(body.payload.plainToken)
       .digest('hex');
 
-    sendResponse({
+    return [{
       plainToken: body.payload.plainToken,
       encryptedToken: hashForValidate,
-    });
-    return;
+    }, null];
   }
 
   if (body.event === incomingEventEnum.recording) {
@@ -124,7 +120,7 @@ export async function events(req, sendResponse) {
       ? processingStateEnum.rejected
       : processingStateEnum.ready;
 
-    this.storage.events
+    return this.storage.events
       .add({
         owner,
         state,
@@ -133,91 +129,95 @@ export async function events(req, sendResponse) {
       .then(({ lastID: eventId } = {}) => {
         const isFailedOperation = (!eventId || (state === processingStateEnum.rejected));
         if (isFailedOperation) {
-          sendResponse({ message: 'Videos is too short or not found', params: {} });
-          return;
+          return [{ message: 'Videos is too short or not found', params: {} }, null];
         }
-        sendResponse({ message: 'All done', params: {} });
+        return [
+          { message: 'All done', params: {} },
+          () => {
+            const preparedTopic = topic.trim().replace(' ', '');
+            const parsedTopic = parseTopic(preparedTopic);
 
-        const preparedTopic = topic.trim().replace(' ', '');
-        const parsedTopic = parseTopic(preparedTopic);
-
-        const makeMeta = () => ({
-          isHexletTopic: (parsedTopic.type === topicEnum.hexlet),
-          isCollegeTopic: (parsedTopic.type === topicEnum.college),
-          date: DateTime.fromISO(start_time).setZone('Europe/Moscow').toFormat('dd.LL.yyyy'),
-          topicType: parsedTopic.type,
-          topicName: '',
-          topicAuthor: '',
-          topicPotok: '',
-          filename: '',
-          filepath: '',
-          youtubeDescription: '',
-          youtubeName: '',
-          youtubePlaylist: '',
-          youtubeUrl: '',
-          zoomAuthorId: account_id,
-        });
-
-        const preparedRecordsPromises = videoRecords.map((record) => {
-          const recordMeta = makeMeta();
-          record.download_token = data.download_token;
-
-          switch (recordMeta.topicType) {
-            case topicEnum.college:
-            case topicEnum.hexlet: {
-              const {
-                theme, tutor, potok,
-              } = parsedTopic;
-              recordMeta.topicName = makeUniqueName();
-              recordMeta.topicAuthor = tutor;
-              recordMeta.topicPotok = potok;
-              recordMeta.youtubePlaylist = potok;
-
-              recordMeta.youtubeDescription = [
-                `* Полное название: ${theme}`,
-                `* Дата: ${recordMeta.date}`,
-                tutor ? `* Автор: ${tutor}` : '',
-                `* Поток: ${potok}`,
-                `* Источник id: ${recordMeta.zoomAuthorId}`,
-              ].filter((x) => x).join('\n');
-              break;
-            }
-            default: {
-              recordMeta.topicName = makeUniqueName();
-              recordMeta.youtubePlaylist = 'Other';
-
-              recordMeta.youtubeDescription = [
-                `* Полное название: ${preparedTopic}`,
-                `* Дата: ${recordMeta.date}`,
-                `* Источник id: ${recordMeta.zoomAuthorId}`,
-              ].join('\n');
-            }
-          }
-
-          recordMeta.youtubeName = recordMeta.topicName;
-          recordMeta.filename = recordMeta.topicName;
-          recordMeta.filepath = buildVideoPath(
-            this.config.STORAGE_DIRPATH,
-            recordMeta.filename,
-            record.file_extension.toLowerCase(),
-          );
-          record.meta = recordMeta;
-
-          return this.storage.records
-            .add({
-              owner,
-              eventId,
-              loadFromZoomState: loadStateEnum.ready,
-              loadToYoutubeState: loadStateEnum.ready,
-              data: record,
+            const makeMeta = () => ({
+              isHexletTopic: (parsedTopic.type === topicEnum.hexlet),
+              isCollegeTopic: (parsedTopic.type === topicEnum.college),
+              date: DateTime.fromISO(start_time).setZone('Europe/Moscow').toFormat('dd.LL.yyyy'),
+              topicType: parsedTopic.type,
+              topicName: '',
+              topicAuthor: '',
+              topicPotok: '',
+              filename: '',
+              filepath: '',
+              youtubeDescription: '',
+              youtubeName: '',
+              youtubePlaylist: '',
+              youtubeUrl: '',
+              zoomAuthorId: account_id,
             });
-        });
 
-        Promise.all(preparedRecordsPromises)
-          .then(() => this.storage.events.update({
-            id: eventId,
-            state: processingStateEnum.processed,
-          }));
+            const preparedRecordsPromises = videoRecords.map((record) => {
+              const recordMeta = makeMeta();
+              record.download_token = data.download_token;
+
+              switch (recordMeta.topicType) {
+                case topicEnum.college:
+                case topicEnum.hexlet: {
+                  const {
+                    theme, tutor, potok,
+                  } = parsedTopic;
+                  recordMeta.topicName = makeUniqueName();
+                  recordMeta.topicAuthor = tutor;
+                  recordMeta.topicPotok = potok;
+                  recordMeta.youtubePlaylist = potok;
+
+                  recordMeta.youtubeDescription = [
+                    `* Полное название: ${theme}`,
+                    `* Дата: ${recordMeta.date}`,
+                    tutor ? `* Автор: ${tutor}` : '',
+                    `* Поток: ${potok}`,
+                    `* Источник id: ${recordMeta.zoomAuthorId}`,
+                  ].filter((x) => x).join('\n');
+                  break;
+                }
+                default: {
+                  recordMeta.topicName = makeUniqueName();
+                  recordMeta.youtubePlaylist = 'Other';
+
+                  recordMeta.youtubeDescription = [
+                    `* Полное название: ${preparedTopic}`,
+                    `* Дата: ${recordMeta.date}`,
+                    `* Источник id: ${recordMeta.zoomAuthorId}`,
+                  ].join('\n');
+                }
+              }
+
+              recordMeta.youtubeName = recordMeta.topicName;
+              recordMeta.filename = recordMeta.topicName;
+              recordMeta.filepath = buildVideoPath(
+                this.config.STORAGE_DIRPATH,
+                recordMeta.filename,
+                record.file_extension.toLowerCase(),
+              );
+              record.meta = recordMeta;
+
+              return this.storage.records
+                .add({
+                  owner,
+                  eventId,
+                  loadFromZoomState: loadStateEnum.ready,
+                  loadToYoutubeState: loadStateEnum.ready,
+                  data: record,
+                });
+            });
+
+            return Promise.all(preparedRecordsPromises)
+              .then(() => this.storage.events.update({
+                id: eventId,
+                state: processingStateEnum.processed,
+              }));
+          },
+        ];
       });
   }
+
+  throw new BadRequestError('Unknown event type');
 }

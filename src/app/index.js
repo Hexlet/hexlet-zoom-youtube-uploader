@@ -3,6 +3,8 @@ import path from 'path';
 import { constants } from 'http2';
 // fastify
 import fastify from 'fastify';
+import * as Sentry from '@sentry/node';
+import '@sentry/tracing';
 // libs
 import ms from 'ms';
 import sqlite3 from 'sqlite3';
@@ -41,6 +43,12 @@ const initServer = (config) => {
     },
   });
 
+  Sentry.init({
+    dsn: config.SENTRY_DSN,
+    tracesSampleRate: 1.0,
+    environment: config.NODE_ENV,
+  });
+
   routeEnum.events.url = `/${config.ROUTE_UUID}`;
   config.OAUTH_REDIRECT_URL = `${config.DOMAIN}${routeEnum.oauthCallback.url}`;
 
@@ -48,6 +56,7 @@ const initServer = (config) => {
 
   server.setErrorHandler((err, req, res) => {
     server.log.debug(err);
+    Sentry.captureException(err);
 
     const isValidationError = err instanceof ValidationError;
     const message = err.message || 'Unknown error';
@@ -142,9 +151,16 @@ const initServer = (config) => {
       };
       const action = controller.events.bind(server);
 
-      return action(data, (result) => {
-        res.code(constants.HTTP_STATUS_OK).send(result);
-      });
+      return action(data)
+        .then(([result, task]) => {
+          if (task) {
+            task().catch((err) => {
+              server.log.error(err);
+              Sentry.captureException(err);
+            });
+          }
+          return res.code(constants.HTTP_STATUS_OK).send(result);
+        });
     },
   });
 

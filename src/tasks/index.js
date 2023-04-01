@@ -1,4 +1,5 @@
 import fs from 'fs';
+import * as Sentry from '@sentry/node';
 import {
   loadStateEnum,
   downloadZoomFile,
@@ -24,6 +25,7 @@ export const prepareDownloadTask = (server) => {
         })
           .catch((err) => {
             server.log.error(err);
+            Sentry.captureException(err);
             item.loadFromZoomError = err.message;
             item.loadFromZoomState = loadStateEnum.failed;
           })
@@ -36,6 +38,9 @@ export const prepareDownloadTask = (server) => {
       });
 
       return Promise.all(loadPromises);
+    }).catch((err) => {
+      server.log.error(err);
+      Sentry.captureException(err);
     });
 };
 
@@ -79,6 +84,8 @@ export const prepareYoutubeTask = (server) => {
               filepath: data.meta.filepath,
             })
             .catch((err) => {
+              server.log.error(err);
+              Sentry.captureException(err);
               item.loadToYoutubeError = err.message;
               item.loadToYoutubeState = loadStateEnum.failed;
             })
@@ -102,5 +109,8 @@ export const prepareYoutubeTask = (server) => {
         });
 
       return Promise.all(loadPromises);
+    }).catch((err) => {
+      server.log.error(err);
+      Sentry.captureException(err);
     });
 };
