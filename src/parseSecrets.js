@@ -33,10 +33,26 @@ fs.readFile(path.join(__dirname, 'secrets.yml'), 'utf8')
   .then((configLinesByEnv) => {
     const promises = [];
     configLinesByEnv.forEach((configLines, envName) => {
-      const filename = `${envName}.env`;
+      let filename = '';
+      switch (envName) {
+        case 'production':
+          filename = '.env';
+          break;
+        case 'test':
+          filename = 'test.config';
+          break;
+        default:
+          filename = `${envName}.env`;
+          break;
+      }
       const filepath = path.join(__dirname, filename);
       const promise = fs.writeFile(filepath, configLines.join('\n')).then(() => filepath);
       promises.push(promise);
+      if (envName === 'development') {
+        const filepathExample = path.join(__dirname, `${filename}.example`);
+        const promiseExample = fs.writeFile(filepathExample, configLines.join('\n')).then(() => filepathExample);
+        promises.push(promiseExample);
+      }
     });
     return Promise.all(promises);
   })

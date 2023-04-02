@@ -20,6 +20,7 @@ import {
   buildVideoPath,
   buildDataPath,
   routeEnum,
+  __dirname,
 } from '../utils/helpers.js';
 import {
   prepareDownloadTask,
@@ -187,7 +188,9 @@ const initDatabase = async (server) => {
       : sqlite3.Database,
   });
 
-  await db.migrate();
+  await db.migrate({
+    migrationsPath: path.join(__dirname, '..', 'migrations'),
+  });
 
   const generateQB = (tableName) => ({
     read: (where = {}) => {

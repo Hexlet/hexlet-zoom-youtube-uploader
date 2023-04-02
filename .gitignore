@@ -116,3 +116,4 @@ dist
 videos
 data
 src/fixtures
+src/secrets.yml

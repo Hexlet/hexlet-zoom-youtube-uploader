@@ -4,10 +4,10 @@ release: build deploy
 
 build:
 	rsync -a --exclude src/node_modules ./src/ ./dist
-	cd dist && NODE_ENV=production npm ci
+	# cd dist && NODE_ENV=production npm ci # При установке зависимостей локально и переносе на виртуалку ломается sqlite3
 
 deploy:
-	ssh -i ~/.ssh/id_rsa_hexlet $(REMOTE) 'cd /root/app && make stop-node'
+	ssh -i ~/.ssh/id_rsa_hexlet $(REMOTE) 'cd /root/app'
 	rsync -avz --progress -e 'ssh -i ~/.ssh/id_rsa_hexlet' ./dist/ $(REMOTE):/root/app
 
 remote:
