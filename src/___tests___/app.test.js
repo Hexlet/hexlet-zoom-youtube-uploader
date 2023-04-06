@@ -1,4 +1,4 @@
-import { app as createApp } from '../app/index.js';
+import { app as createApp } from '../index.js';
 import { ConfigValidationError } from '../utils/errors.js';
 
 describe('Positive cases', () => {

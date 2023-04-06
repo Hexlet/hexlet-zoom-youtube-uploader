@@ -9,7 +9,6 @@ import {
   buildVideoPath,
   processingStateEnum,
   incomingEventEnum,
-  // bodyFixture,
 } from '../utils/helpers.js';
 import {
   BadRequestError, ForbiddenError,
@@ -101,7 +100,6 @@ export async function events(req) {
   }
 
   if (body.event === incomingEventEnum.recording) {
-    // const data = this.config.IS_DEV_ENV ? bodyFixture : body;
     const data = body;
     const {
       topic,
@@ -110,7 +108,7 @@ export async function events(req) {
       start_time,
       account_id,
     } = data.payload.object;
-    const isTooShort = (duration < 5); // если запись менее 5 минут
+    const isTooShort = (duration < this.config.MINIMAL_DURATION_MINUTES); // если запись менее N минут
     const videoRecords = recording_files.filter(({ recording_type, status }) => (
       (recording_type === 'shared_screen_with_speaker_view')
       && (status === 'completed')

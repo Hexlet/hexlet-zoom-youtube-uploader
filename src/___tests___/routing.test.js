@@ -1,4 +1,4 @@
-import { app as createApp } from '../app/index.js';
+import { app as createApp } from '../index.js';
 import { routeEnum } from '../utils/helpers.js';
 
 let app;

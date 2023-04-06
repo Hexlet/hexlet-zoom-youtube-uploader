@@ -93,9 +93,10 @@ export const prepareYoutubeTask = (server) => {
               if (item.loadToYoutubeState !== loadStateEnum.failed) {
                 item.loadToYoutubeState = loadStateEnum.success;
                 data.meta.youtubeUrl = `https://youtu.be/${res.data.id}`;
+                return server.storage.records.update(item).then(() => res.data.id);
               }
-              return server.storage.records.update(item)
-                .then(() => res.data.id);
+
+              return server.storage.records.update(item);
             })
             .then((videoId) => {
               if (item.loadToYoutubeState !== loadStateEnum.failed) {

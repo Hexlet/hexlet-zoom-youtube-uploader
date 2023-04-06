@@ -3,8 +3,9 @@ import path from 'path';
 import _ from 'lodash';
 import dotenv from 'dotenv';
 import { ConfigValidationError } from './errors.js';
-import { __dirname } from './helpers.js';
+import { __dirnameBuild } from './helpers.js';
 
+const __dirname = __dirnameBuild(import.meta.url);
 const envsMap = {
   prod: 'production',
   dev: 'development',
@@ -38,6 +39,7 @@ const configSchema = yup.object({
   CRON_DELAY: yup.string().required(),
   ZOOM_WEBHOOK_SECRET_TOKEN: yup.string().required(),
   SENTRY_DSN: yup.string().required(),
+  MINIMAL_DURATION_MINUTES: yup.number().required(),
   STORAGE_DIRPATH: yup.string()
     .transform((__, paths) => path.resolve(__dirname, ...paths.split(',')))
     .required(),

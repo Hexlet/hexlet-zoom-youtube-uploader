@@ -3,10 +3,27 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 import ymlParser from 'yaml';
 
+/* пример secrets.yml
+---
+NODE_ENV:
+  environments:
+    development: development
+    test: test
+    production: production
+SECRET_TOKEN:
+  environments:
+    development: jopa lala
+    test: null # это будет пропущено из-за пустого значения
+    production: 2wGpqy0bTy-TSjAr5r79uA # это будет пропущено из-за секции secrets
+  secrets:
+    - production
+...
+*/
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const envsFilters = [
-  (envName, varValue) => (!varValue), // переменные с пустым значением
-  (envName, varValue, variableName, secrets) => secrets.includes(envName), // переменные, указанные в секции secrets
+const envsFilters = [ // убирает переменные:
+  (envName, varValue) => (varValue === null), // со значением null
+  (envName, varValue, variableName, secrets) => secrets.includes(envName), // указанные в секции secrets
 ];
 
 fs.readFile(path.join(__dirname, 'secrets.yml'), 'utf8')
