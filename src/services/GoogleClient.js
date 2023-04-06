@@ -103,14 +103,21 @@ export class GoogleClient {
 
     if (tokens) {
       client.oauth.on('tokens', (refreshedTokens) => {
-        this.logger.debug(`Refresh tokens for owner=${owner} refreshedTokens=${JSON.stringify(refreshedTokens)}`);
-        client.oauth.setCredentials(refreshedTokens);
-        this.storage.readOne({ owner })
-          .then((savedParams) => this.storage.update({
+        this.storage.readOne({ owner }).then((savedParams) => {
+          const savedTokens = JSON.parse(savedParams.tokens);
+          const combinedTokens = {
+            ...savedTokens,
+            ...refreshedTokens,
+          };
+
+          client.oauth.setCredentials(combinedTokens);
+          this.storage.update({
             id: savedParams.id,
-            tokens: JSON.stringify(refreshedTokens),
-          }));
+            tokens: combinedTokens,
+          });
+        });
       });
+
       client.oauth.setCredentials(typeof tokens === 'string' ? JSON.parse(tokens) : tokens);
 
       const youtubeClient = google.youtube({
