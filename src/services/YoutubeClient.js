@@ -15,7 +15,7 @@ export class YoutubeClient {
 
   async getPlayLists() {
     if (this.playlistIdMap.size > 0) {
-      return this.playlistIdMap;
+      return false;
     }
 
     const loadPlayLists = (pageToken = undefined) => this.client.playlists
@@ -76,10 +76,13 @@ export class YoutubeClient {
   }
 
   async insertToPlaylist({ title, videoId }) {
-    return this.playlistIdMap.has(title)
-      ? this.addToPlaylist({ title, videoId })
-      : this.createPlaylist({ title })
-        .then(() => this.addToPlaylist({ title, videoId }));
+    return this.getPlayLists()
+      .then(() => (
+        this.playlistIdMap.has(title)
+          ? this.addToPlaylist({ title, videoId })
+          : this.createPlaylist({ title })
+            .then(() => this.addToPlaylist({ title, videoId }))
+      ));
   }
 
   async uploadVideo({ title, description, filepath }) {

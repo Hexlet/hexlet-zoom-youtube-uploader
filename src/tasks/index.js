@@ -77,6 +77,11 @@ export const prepareYoutubeTask = (server) => {
           }
 
           // return Promise.resolve();
+          /* TODO: Квоты
+            Надо учесть ошибку при окончании квоты, чтобы задача не реджектилась.
+            Но здесь наверное надо бить на подзадачи, т.к. квота может кончиться
+            на этапе добавления в плейлист, когда видео загружено
+          */
           return client
             .uploadVideo({
               title: data.meta.youtubeName,
