@@ -2,7 +2,7 @@ import * as luxon from 'luxon';
 import crypto from 'crypto';
 import yup from 'yup';
 import {
-  topicEnum,
+  padString,
   parseTopic,
   loadStateEnum,
   makeUniqueName,
@@ -133,21 +133,24 @@ export async function events(req) {
           { message: 'All done', params: {} },
           () => {
             const preparedTopic = topic.trim().replace(' ', '');
-            const parsedTopic = parseTopic(preparedTopic);
+            const {
+              isParsed,
+              theme,
+              speaker,
+              playlist,
+            } = parseTopic(preparedTopic);
 
             const makeMeta = () => ({
-              isHexletTopic: (parsedTopic.type === topicEnum.hexlet),
-              isCollegeTopic: (parsedTopic.type === topicEnum.college),
               date: DateTime.fromISO(start_time).setZone('Europe/Moscow').toFormat('dd.LL.yyyy'),
-              topicType: parsedTopic.type,
-              topicName: '',
-              topicAuthor: '',
-              topicPotok: '',
-              filename: '',
+              topicTheme: padString(theme),
+              topicSpeaker: speaker,
+              topicPlaylist: playlist,
+              topicIsParsed: isParsed,
+              filename: makeUniqueName(),
               filepath: '',
               youtubeDescription: '',
               youtubeName: '',
-              youtubePlaylist: '',
+              youtubePlaylist: playlist,
               youtubeUrl: '',
               zoomAuthorId: account_id,
             });
@@ -156,40 +159,25 @@ export async function events(req) {
               const recordMeta = makeMeta();
               record.download_token = data.download_token;
 
-              switch (recordMeta.topicType) {
-                case topicEnum.college:
-                case topicEnum.hexlet: {
-                  const {
-                    theme, tutor, potok,
-                  } = parsedTopic;
-                  recordMeta.topicName = makeUniqueName();
-                  recordMeta.topicAuthor = tutor;
-                  recordMeta.topicPotok = potok;
-                  recordMeta.youtubePlaylist = potok;
-
-                  recordMeta.youtubeDescription = [
-                    `* Полное название: ${theme}`,
-                    `* Дата: ${recordMeta.date}`,
-                    tutor ? `* Автор: ${tutor}` : '',
-                    `* Поток: ${potok}`,
-                    `* Источник id: ${recordMeta.zoomAuthorId}`,
-                  ].filter((x) => x).join('\n');
-                  break;
-                }
-                default: {
-                  recordMeta.topicName = makeUniqueName();
-                  recordMeta.youtubePlaylist = 'Other';
-
-                  recordMeta.youtubeDescription = [
-                    `* Полное название: ${preparedTopic}`,
-                    `* Дата: ${recordMeta.date}`,
-                    `* Источник id: ${recordMeta.zoomAuthorId}`,
-                  ].join('\n');
-                }
+              if (recordMeta.isParsed) {
+                recordMeta.youtubeDescription = [
+                  `* Полное название: ${theme}`,
+                  `* Дата: ${recordMeta.date}`,
+                  speaker ? `* Спикер: ${speaker}` : '',
+                  `* Плейлист: ${playlist}`,
+                  `* Источник id: ${recordMeta.zoomAuthorId}`,
+                ].filter((x) => x).join('\n');
+              } else {
+                recordMeta.topicTheme = padString(preparedTopic);
+                recordMeta.youtubePlaylist = 'Other';
+                recordMeta.youtubeDescription = [
+                  `* Полное название: ${preparedTopic}`,
+                  `* Дата: ${recordMeta.date}`,
+                  `* Источник id: ${recordMeta.zoomAuthorId}`,
+                ].join('\n');
               }
 
-              recordMeta.youtubeName = recordMeta.topicName;
-              recordMeta.filename = recordMeta.topicName;
+              recordMeta.youtubeName = recordMeta.topicTheme;
               recordMeta.filepath = buildVideoPath(
                 this.config.STORAGE_DIRPATH,
                 recordMeta.filename,

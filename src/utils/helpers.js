@@ -12,7 +12,6 @@ const arrToEnum = (arr) => Object.freeze(arr.reduce((acc, state) => {
 
 export const processingStateEnum = arrToEnum(['ready', 'processed', 'rejected']);
 export const loadStateEnum = arrToEnum(['ready', 'success', 'failed']);
-export const topicEnum = arrToEnum(['other', 'hexlet', 'college']);
 export const incomingEventEnum = Object.freeze({
   validation: 'endpoint.url_validation',
   recording: 'recording.completed',
@@ -42,40 +41,34 @@ export const routeEnum = {
 };
 
 export const parseTopic = (topic) => {
-  const parts = topic.split(';').map((item) => item.trim());
-  let type = topicEnum.other;
-  if (parts.length < 3) {
-    return { type };
-  }
-  const [theme = '', tutor = '', potok = ''] = parts;
-  const potokLC = potok.trim().toLowerCase();
-  const isHexletTopic = potokLC.startsWith('potok');
-  const isCollegeTopic = potokLC.startsWith('колледж');
-  if (!(isHexletTopic || isCollegeTopic)) {
-    return { type };
-  }
-
-  if (isHexletTopic) {
-    type = topicEnum.hexlet;
-  } else if (isCollegeTopic) {
-    type = topicEnum.college;
-  }
-
-  return {
-    theme: theme.trim(),
-    tutor: tutor.trim(),
-    potok: potokLC,
-    type,
+  const result = {
+    theme: '',
+    speaker: '',
+    playlist: '',
+    isParsed: true,
   };
+  const parts = topic.split(';').filter((i) => i).map((item) => item.trim());
+  if (parts.length < 3) {
+    return result;
+  }
+
+  const [theme = '', speaker = '', playlist = ''] = parts;
+
+  result.theme = theme.trim();
+  result.speaker = speaker.trim();
+  result.playlist = playlist.trim().toLowerCase();
+  result.isParsed = true;
+
+  return result;
 };
 
-export const padString = (string, maxLength = 50, endSymbol = '…') => {
+export const padString = (string, maxLength = 100, endSymbol = '…') => {
   if (string.length <= maxLength) {
     return string;
   }
   const stringFinalLength = maxLength - endSymbol.length;
   const paddedString = string.slice(0, stringFinalLength);
-  return `${paddedString}${endSymbol}`;
+  return `${paddedString}${endSymbol}`; // length === (maxLength include endSymbol)
 };
 
 export const asyncTimeout = (ms, cb = (() => { })) => {
@@ -115,6 +108,7 @@ export const buildVideoPath = (storageDirpath, filename, ext = 'mp4') => path
   .resolve(storageDirpath, 'videos', `${filename}.${ext}`);
 export const writeFile = (filepath, data) => fs.promises.writeFile(filepath, data, 'utf-8');
 export const readFile = (filepath) => fs.promises.readFile(filepath, 'utf-8').then((data) => JSON.parse(data));
+
 export const downloadZoomFile = ({ filepath, url, token }) => {
   const file = fs.createWriteStream(filepath);
 
