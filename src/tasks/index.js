@@ -2,14 +2,16 @@ import fs from 'fs';
 import * as Sentry from '@sentry/node';
 import {
   loadStateEnum,
+  loadToYoutubeActionEnum,
   downloadZoomFile,
+  isYoutubeQuotaError,
 } from '../utils/helpers.js';
 
 export const prepareDownloadTask = (server) => {
   const itemsInProcessing = new Set();
 
   return () => server.storage.records
-    .read({ loadFromZoomState: loadStateEnum.ready })
+    .read({ loadFromZoomState: loadStateEnum.ready }, { createdAt: 'ASC' })
     .then((items) => {
       const loadPromises = items.map((item) => {
         if (itemsInProcessing.has(item.id)) {
@@ -48,10 +50,13 @@ export const prepareYoutubeTask = (server) => {
   const itemsInProcessing = new Set();
 
   return () => server.storage.records
-    .read({
-      loadFromZoomState: loadStateEnum.success,
-      loadToYoutubeState: loadStateEnum.ready,
-    })
+    .read(
+      {
+        loadFromZoomState: loadStateEnum.success,
+        loadToYoutubeState: loadStateEnum.ready,
+      },
+      { createdAt: 'ASC' },
+    )
     .then((items) => {
       const filteredItems = items.filter((item) => !itemsInProcessing.has(item.id));
       const clientItemMapPromises = filteredItems.map((item) => server.googleClient
@@ -75,6 +80,7 @@ export const prepareYoutubeTask = (server) => {
             item.loadToYoutubeError = 'File not exists';
             return server.storage.records.update(item);
           }
+          item.loadToYoutubeLastAction = loadToYoutubeActionEnum.upload;
 
           // return Promise.resolve();
           /* TODO: Квоты
@@ -89,26 +95,66 @@ export const prepareYoutubeTask = (server) => {
               filepath: data.meta.filepath,
             })
             .catch((err) => {
-              server.log.error(err);
-              Sentry.captureException(err);
-              item.loadToYoutubeError = err.message;
-              item.loadToYoutubeState = loadStateEnum.failed;
+              // server.log.error(err);
+              // Sentry.captureException(err);
+              // item.loadToYoutubeError = err.message;
+              // item.loadToYoutubeState = loadStateEnum.failed;
+              server.log.debug({ isYoutubeQuotaError: isYoutubeQuotaError(err) });
+
+              if (isYoutubeQuotaError(err)) {
+                item.loadToYoutubeError = err.message;
+                item.loadToYoutubeState = loadStateEnum.unfinally;
+              } else {
+                server.log.error(err);
+                Sentry.captureException(err);
+                item.loadToYoutubeError = err.message;
+                item.loadToYoutubeState = loadStateEnum.failed;
+              }
             })
             .then((res) => {
-              if (item.loadToYoutubeState !== loadStateEnum.failed) {
-                item.loadToYoutubeState = loadStateEnum.success;
-                data.meta.youtubeUrl = `https://youtu.be/${res.data.id}`;
-                return server.storage.records.update(item).then(() => res.data.id);
+              switch (item.loadToYoutubeState) {
+                case loadStateEnum.ready: {
+                  item.loadToYoutubeState = loadStateEnum.processing;
+                  data.meta.youtubeUrl = `https://youtu.be/${res.data.id}`;
+                  return server.storage.records.update(item).then(() => res.data.id);
+                }
+                case loadStateEnum.unfinally: {
+                  item.loadToYoutubeState = loadStateEnum.ready;
+                  return server.storage.records.update(item).then(() => null);
+                }
+                default: {
+                  return server.storage.records.update(item).then(() => null);
+                }
               }
+              // if (item.loadToYoutubeState !== loadStateEnum.failed) {
+              //   item.loadToYoutubeState = loadStateEnum.success;
+              //   data.meta.youtubeUrl = `https://youtu.be/${res.data.id}`;
+              //   return server.storage.records.update(item).then(() => res.data.id);
+              // }
 
-              return server.storage.records.update(item);
+              // return server.storage.records.update(item);
             })
             .then((videoId) => {
-              if (item.loadToYoutubeState !== loadStateEnum.failed) {
-                return client.insertToPlaylist({
-                  videoId,
-                  title: data.meta.youtubePlaylist,
-                });
+              if (item.loadToYoutubeState === loadStateEnum.processing) {
+                item.loadToYoutubeLastAction = loadToYoutubeActionEnum.playlist;
+                return client
+                  .insertToPlaylist({
+                    videoId,
+                    title: data.meta.youtubePlaylist,
+                  })
+                  .then(() => {
+                    item.loadToYoutubeError = '';
+                    item.loadToYoutubeState = loadStateEnum.success;
+                    return server.storage.records.update(item);
+                  })
+                  .catch((err) => {
+                    if (isYoutubeQuotaError(err)) {
+                      item.loadToYoutubeError = err.message;
+                      item.loadToYoutubeState = loadStateEnum.unfinally;
+                      return server.storage.records.update(item);
+                    }
+                    throw err;
+                  });
               }
               return true;
             });
@@ -120,3 +166,5 @@ export const prepareYoutubeTask = (server) => {
       Sentry.captureException(err);
     });
 };
+
+// TODO: нужна таска на обработку видео, залитых на ютуб, но не добавленных в плейлист из-за кончившейся квоты?

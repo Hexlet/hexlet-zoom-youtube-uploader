@@ -11,7 +11,8 @@ const arrToEnum = (arr) => Object.freeze(arr.reduce((acc, state) => {
 }, {}));
 
 export const processingStateEnum = arrToEnum(['ready', 'processed', 'rejected']);
-export const loadStateEnum = arrToEnum(['ready', 'success', 'failed']);
+export const loadStateEnum = arrToEnum(['ready', 'processing', 'unfinally', 'success', 'failed']);
+export const loadToYoutubeActionEnum = arrToEnum(['upload', 'playlist']);
 export const incomingEventEnum = Object.freeze({
   validation: 'endpoint.url_validation',
   recording: 'recording.completed',
@@ -39,6 +40,11 @@ export const routeEnum = {
     url: '/oauth2callback',
   },
 };
+
+export const isYoutubeQuotaError = (err) => err
+  && err.errors
+  && Array.isArray(err.errors)
+  && err.errors.some((meta) => meta.reason === 'quotaExceeded');
 
 export const parseTopic = (topic) => {
   const result = {

@@ -192,11 +192,11 @@ const initDatabase = async (server) => {
   });
 
   const generateQB = (tableName) => ({
-    read: (where = {}) => {
-      const whereKeys = Object.keys(where);
-      const hasWhere = whereKeys.length > 0;
+    read: (where = {}, sortBy = {}) => {
       let select = `SELECT * FROM ${tableName}`;
 
+      const whereKeys = Object.keys(where);
+      const hasWhere = whereKeys.length > 0;
       if (hasWhere) {
         const placeholders = [];
         where = whereKeys.reduce((acc, key) => {
@@ -208,6 +208,17 @@ const initDatabase = async (server) => {
         select = `${select} WHERE ${placeholders.join(' AND ')}`;
       }
 
+      const sortKeys = Object.keys(sortBy);
+      const hasSorts = sortKeys.length > 0;
+      if (hasSorts) {
+        const sorts = sortKeys.reduce((acc, key) => {
+          const sort = `${key} ${sortBy[key]}`;
+          acc.push(sort);
+          return acc;
+        }, []);
+        select = `${select} ORDER BY ${sorts.join(', ')}`;
+      }
+
       return db.all(select, where)
         .then((items) => items.map((item) => {
           if (item.data) {
@@ -217,8 +228,8 @@ const initDatabase = async (server) => {
           return item;
         }));
     },
-    readOne: function readOne(where = {}) {
-      return this.read(where).then((results) => results[0]);
+    readOne: function readOne(where = {}, sortBy = {}) {
+      return this.read(where, sortBy).then((results) => results[0]);
     },
     update: (params) => {
       const { id, ...fields } = params;
@@ -303,13 +314,14 @@ export const app = async (envName) => {
   server.decorate('googleClient', googleClient);
 
   // TODO: выпилить, когда разберусь с обновлением токена и квотами
-  // await server.storage.records.read({ loadToYoutubeState: 'failed' })
-  //   .then((records) => Promise.all(records
-  //     .map((record) => server.storage.records.update({
-  //       id: record.id,
-  //       loadToYoutubeState: 'ready',
-  //       loadToYoutubeError: '',
-  //     }))));
+  // console.log('----- jopa lala');
+  // await server.storage.records.read({ loadFromZoomState: 'failed' }, { createdAt: 'DESC' })
+  // .then((records) => Promise.all(records
+  //   .map((record) => server.storage.records.update({
+  //     id: record.id,
+  //     loadToYoutubeState: 'ready',
+  //     loadToYoutubeError: '',
+  //   }))));
 
   const stop = async () => {
     server.log.info('Stop app', config);
