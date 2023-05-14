@@ -102,7 +102,7 @@ export class GoogleClient {
     client.oauth.authURL = authURL.toString();
 
     if (tokens) {
-      // TODO: обновление токена происходит по запросу. Но кто и когда запрос делает? Вроде должна сама либа
+      // TODO: обновление токена происходит по запросу. Но кто и когда запрос делает? Вроде должна сама либа, но бывают ошибки токена. Может надо перезаписывать весь объект client?
       client.oauth.on('tokens', (refreshedTokens) => {
         this.storage.readOne({ owner }).then((savedParams) => {
           const savedTokens = JSON.parse(savedParams.tokens);
