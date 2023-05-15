@@ -27,6 +27,7 @@ export const prepareDownloadTask = (server) => {
         })
           .catch((err) => {
             server.log.error(err);
+            Sentry.setContext('downloadZoomFile', err);
             Sentry.captureException(err);
             item.loadFromZoomError = err.message;
             item.loadFromZoomState = loadStateEnum.failed;
@@ -42,6 +43,7 @@ export const prepareDownloadTask = (server) => {
       return Promise.all(loadPromises);
     }).catch((err) => {
       server.log.error(err);
+      Sentry.setContext('prepareDownloadTask', err);
       Sentry.captureException(err);
     });
 };
@@ -106,6 +108,7 @@ export const prepareYoutubeTask = (server) => {
                 item.loadToYoutubeState = loadStateEnum.unfinally;
               } else {
                 server.log.error(err);
+                Sentry.setContext('uploadVideo', err);
                 Sentry.captureException(err);
                 item.loadToYoutubeError = err.message;
                 item.loadToYoutubeState = loadStateEnum.failed;
@@ -163,6 +166,7 @@ export const prepareYoutubeTask = (server) => {
       return Promise.all(loadPromises);
     }).catch((err) => {
       server.log.error(err);
+      Sentry.setContext('prepareDownloadTask', err);
       Sentry.captureException(err);
     });
 };

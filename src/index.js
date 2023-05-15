@@ -56,6 +56,7 @@ const initServer = (config) => {
 
   server.setErrorHandler((err, req, res) => {
     server.log.debug(err);
+    Sentry.setContext('global error handler', err);
     Sentry.captureException(err);
 
     const isValidationError = err instanceof ValidationError;
@@ -156,6 +157,7 @@ const initServer = (config) => {
           if (task) {
             task().catch((err) => {
               server.log.error(err);
+              Sentry.setContext('task on route events', err);
               Sentry.captureException(err);
             });
           }
