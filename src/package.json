@@ -28,7 +28,7 @@
   },
   "homepage": "https://github.com/Hexlet/hexlet-zoom-youtube-uploader#readme",
   "devDependencies": {
-    "eslint": "^8.37.0",
+    "eslint": "^8.40.0",
     "eslint-config-airbnb-base": "^15.0.0",
     "eslint-plugin-import": "^2.27.5",
     "eslint-plugin-jest": "^27.2.1",
@@ -37,18 +37,18 @@
     "pino-pretty": "^10.0.0"
   },
   "dependencies": {
-    "@sentry/node": "^7.46.0",
-    "@sentry/tracing": "^7.46.0",
-    "axios": "^1.3.4",
+    "@sentry/node": "^7.51.2",
+    "@sentry/tracing": "^7.51.2",
+    "axios": "^1.4.0",
     "dotenv": "^16.0.3",
-    "fastify": "^4.15.0",
-    "googleapis": "^114.0.0",
+    "fastify": "^4.17.0",
+    "googleapis": "^118.0.0",
     "lodash": "^4.17.21",
     "luxon": "^3.3.0",
     "ms": "^2.1.3",
-    "sqlite": "^4.1.2",
+    "sqlite": "^4.2.0",
     "sqlite3": "^5.1.6",
     "yaml": "^2.2.2",
-    "yup": "^1.0.2"
+    "yup": "^1.1.1"
   }
 }
