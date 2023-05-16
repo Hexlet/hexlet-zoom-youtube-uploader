@@ -132,6 +132,7 @@ export async function events(req) {
         return [
           { message: 'All done', params: {} },
           () => {
+            // TODO: придумать белый список или чёрный список для записей, которые не нужно загружать
             const preparedTopic = topic.trim().replace(' ', '');
             const {
               isParsed,
@@ -159,7 +160,7 @@ export async function events(req) {
               const recordMeta = makeMeta();
               record.download_token = data.download_token;
 
-              if (recordMeta.isParsed) {
+              if (recordMeta.topicIsParsed) {
                 recordMeta.youtubeDescription = [
                   `* Полное название: ${theme}`,
                   `* Дата: ${recordMeta.date}`,

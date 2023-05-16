@@ -53,7 +53,7 @@ export const parseTopic = (topic) => {
     playlist: '',
     isParsed: true,
   };
-  const parts = topic.split(';').filter((i) => i).map((item) => item.trim());
+  const parts = topic.split(';').map((item) => item.trim()).filter((i) => i);
   if (parts.length < 3) {
     return result;
   }
