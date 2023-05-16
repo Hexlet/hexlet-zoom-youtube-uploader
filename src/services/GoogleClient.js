@@ -114,7 +114,7 @@ export class GoogleClient {
           client.oauth.setCredentials(combinedTokens);
           this.storage.update({
             id: savedParams.id,
-            tokens: combinedTokens,
+            tokens: JSON.stringify(combinedTokens),
           });
         });
       });
