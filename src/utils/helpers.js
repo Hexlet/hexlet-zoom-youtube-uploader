@@ -19,6 +19,9 @@ export const incomingEventEnum = Object.freeze({
 });
 export const routeEnum = {
   prefix: '/api',
+  version: {
+    v1: '/v1',
+  },
   main: {
     method: 'GET',
     url: '',

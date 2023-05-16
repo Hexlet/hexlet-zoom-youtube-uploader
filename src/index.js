@@ -81,9 +81,11 @@ const initServer = (config) => {
       });
   });
 
+  // TODO: добавить роут выгрузки records
+
   server.route({
     method: routeEnum.main.method,
-    url: `${routeEnum.prefix}/v1${routeEnum.main.url}`,
+    url: `${routeEnum.prefix}${routeEnum.version.v1}${routeEnum.main.url}`,
     handler(req, res) {
       res.code(constants.HTTP_STATUS_OK).send({ message: 'Hi!', params: {} });
     },
@@ -91,7 +93,7 @@ const initServer = (config) => {
 
   server.route({
     method: routeEnum.register.method,
-    url: `${routeEnum.prefix}/v1${routeEnum.register.url}`,
+    url: `${routeEnum.prefix}${routeEnum.version.v1}${routeEnum.register.url}`,
     handler(req, res) {
       const data = {
         body: req.body || {},
@@ -110,7 +112,7 @@ const initServer = (config) => {
 
   server.route({
     method: routeEnum.oauth.method,
-    url: `${routeEnum.prefix}/v1${routeEnum.oauth.url}`,
+    url: `${routeEnum.prefix}${routeEnum.version.v1}${routeEnum.oauth.url}`,
     handler(req, res) {
       const data = {
         body: req.body || {},
@@ -144,7 +146,7 @@ const initServer = (config) => {
 
   server.route({
     method: routeEnum.events.method,
-    url: `${routeEnum.prefix}/v1${routeEnum.events.url}`,
+    url: `${routeEnum.prefix}${routeEnum.version.v1}${routeEnum.events.url}`,
     handler(req, res) {
       const data = {
         body: req.body || {},
