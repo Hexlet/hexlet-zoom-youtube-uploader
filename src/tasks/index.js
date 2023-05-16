@@ -85,11 +85,6 @@ export const prepareYoutubeTask = (server) => {
           item.loadToYoutubeLastAction = loadToYoutubeActionEnum.upload;
 
           // return Promise.resolve();
-          /* TODO: Квоты
-            Надо учесть ошибку при окончании квоты, чтобы задача не реджектилась.
-            Но здесь наверное надо бить на подзадачи, т.к. квота может кончиться
-            на этапе добавления в плейлист, когда видео загружено
-          */
           return client
             .uploadVideo({
               title: data.meta.youtubeName,
@@ -97,12 +92,6 @@ export const prepareYoutubeTask = (server) => {
               filepath: data.meta.filepath,
             })
             .catch((err) => {
-              // server.log.error(err);
-              // Sentry.captureException(err);
-              // item.loadToYoutubeError = err.message;
-              // item.loadToYoutubeState = loadStateEnum.failed;
-              server.log.debug({ isYoutubeQuotaError: isYoutubeQuotaError(err) });
-
               if (isYoutubeQuotaError(err)) {
                 item.loadToYoutubeError = err.message;
                 item.loadToYoutubeState = loadStateEnum.unfinally;
@@ -129,13 +118,6 @@ export const prepareYoutubeTask = (server) => {
                   return server.storage.records.update(item).then(() => null);
                 }
               }
-              // if (item.loadToYoutubeState !== loadStateEnum.failed) {
-              //   item.loadToYoutubeState = loadStateEnum.success;
-              //   data.meta.youtubeUrl = `https://youtu.be/${res.data.id}`;
-              //   return server.storage.records.update(item).then(() => res.data.id);
-              // }
-
-              // return server.storage.records.update(item);
             })
             .then((videoId) => {
               if (item.loadToYoutubeState === loadStateEnum.processing) {
