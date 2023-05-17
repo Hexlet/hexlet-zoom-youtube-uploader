@@ -81,8 +81,6 @@ const initServer = (config) => {
       });
   });
 
-  // TODO: добавить роут выгрузки records
-
   server.route({
     method: routeEnum.main.method,
     url: `${routeEnum.prefix}${routeEnum.version.v1}${routeEnum.main.url}`,
@@ -165,6 +163,22 @@ const initServer = (config) => {
           }
           return res.code(constants.HTTP_STATUS_OK).send(result);
         });
+    },
+  });
+
+  server.route({
+    method: routeEnum.report.method,
+    url: `${routeEnum.prefix}${routeEnum.version.v1}${routeEnum.report.url}${routeEnum.events.url}`,
+    handler(req, res) {
+      const data = {
+        query: req.query || {},
+      };
+      const action = controller.report.bind(server);
+
+      return action(data)
+        .then((message) => res
+          .code(constants.HTTP_STATUS_OK)
+          .send({ message, params: {} }));
     },
   });
 

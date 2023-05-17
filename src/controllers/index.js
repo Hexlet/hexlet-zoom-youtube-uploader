@@ -1,6 +1,7 @@
 import * as luxon from 'luxon';
 import crypto from 'crypto';
 import yup from 'yup';
+import flat from 'flat';
 import {
   padString,
   parseTopic,
@@ -31,7 +32,11 @@ export async function reqister(data) {
       const usp = new URLSearchParams();
       usp.append('owner', params.owner);
       return {
-        message: `Registration complete. Send GET-request to /oauth2?${usp.toString()}`,
+        message: `Registration complete. Go to ${this.config.DOMAIN}/oauth2?${usp.toString()}`,
+        params: {
+          url: `${this.config.DOMAIN}/oauth2?${usp.toString()}`,
+          method: 'GET',
+        },
       };
     });
 }
@@ -50,6 +55,51 @@ export async function oauth(data) {
       }
 
       return service.oauth.authURL;
+    });
+}
+
+const formatEnum = {
+  json: 'json',
+  tsv: 'tsv',
+};
+const handlerByFormat = {
+  [formatEnum.json]: (records) => records,
+  [formatEnum.tsv]: (records) => {
+    if (records.length === 0) return '';
+    const firstRecord = records[0];
+    const headers = Object.keys(flat(firstRecord));
+    const headersRow = headers.join('\t');
+    const rows = [headersRow];
+
+    records.forEach((record) => {
+      const values = Object.values(flat(record));
+      const valuesRow = values.join('\t').replace(/\n/gim, '\\n');
+      rows.push(valuesRow);
+    });
+
+    return rows.join('\n');
+  },
+};
+export async function report(params) {
+  const { query } = params;
+  if (!query.format) {
+    query.format = formatEnum.json;
+  }
+  if (!Object.values(formatEnum).includes(query.format)) {
+    throw new BadRequestError('Unknown format for records report');
+  }
+
+  return this.storage.records
+    .read()
+    .then((records) => {
+      const preparedRecords = [];
+      records.forEach((record) => {
+        const { data, ...commonFields } = record;
+        commonFields.meta = data.meta;
+        preparedRecords.push(commonFields);
+      });
+
+      return handlerByFormat[query.format](preparedRecords);
     });
 }
 

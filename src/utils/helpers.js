@@ -42,6 +42,10 @@ export const routeEnum = {
     method: 'GET',
     url: '/oauth2callback',
   },
+  report: {
+    method: 'GET',
+    url: '/report',
+  },
 };
 
 export const isYoutubeQuotaError = (err) => err
