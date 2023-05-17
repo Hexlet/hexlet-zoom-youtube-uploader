@@ -37,9 +37,15 @@ const configSchema = yup.object({
   ROUTE_UUID: yup.string().required(),
   CRON_PERIOD: yup.string().required(),
   CRON_DELAY: yup.string().required(),
-  ZOOM_WEBHOOK_SECRET_TOKEN: yup.string().required(),
   SENTRY_DSN: yup.string().required(),
-  MINIMAL_DURATION_MINUTES: yup.number().required(),
+  ZOOM_SKIP_MINIMAL_DURATION_MINUTES: yup.number().required(),
+  ZOOM_WEBHOOK_SECRET_TOKEN: yup.string().required(),
+  ZOOM_SKIP_TOPIC_CONTAINS: yup.array()
+    .transform((__, topics) => (topics ? topics.split(',') : []))
+    .required(),
+  ZOOM_SKIP_USERS_MAILS: yup.array() // TODO: запретить скачивание видео по емейлам
+    .transform((__, emails) => emails.split(','))
+    .required(),
   STORAGE_DIRPATH: yup.string()
     .transform((__, paths) => path.resolve(__dirname, ...paths.split(',')))
     .required(),

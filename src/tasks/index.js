@@ -36,7 +36,10 @@ export const prepareDownloadTask = (server) => {
             if (item.loadFromZoomState !== loadStateEnum.failed) {
               item.loadFromZoomState = loadStateEnum.success;
             }
-            return server.storage.records.update(item);
+            return server.storage.records.update(item)
+              .finally(() => {
+                itemsInProcessing.delete(item.id);
+              });
           });
       });
 
@@ -142,6 +145,9 @@ export const prepareYoutubeTask = (server) => {
                   });
               }
               return true;
+            })
+            .finally(() => {
+              itemsInProcessing.delete(item.id);
             });
         });
 

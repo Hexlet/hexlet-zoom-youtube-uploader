@@ -158,7 +158,8 @@ export async function events(req) {
       start_time,
       account_id,
     } = data.payload.object;
-    const isTooShort = (duration < this.config.MINIMAL_DURATION_MINUTES); // если запись менее N минут
+    const isTooShort = (duration < this.config.ZOOM_SKIP_MINIMAL_DURATION_MINUTES); // если запись менее N минут
+    // TODO: использовать ZOOM_SKIP_TOPIC_CONTAINS
     const videoRecords = recording_files.filter(({ recording_type, status }) => (
       (recording_type === 'shared_screen_with_speaker_view')
       && (status === 'completed')
