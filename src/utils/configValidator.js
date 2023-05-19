@@ -38,16 +38,16 @@ const configSchema = yup.object({
   CRON_PERIOD: yup.string().required(),
   CRON_DELAY: yup.string().required(),
   SENTRY_DSN: yup.string().required(),
-  ZOOM_SKIP_MINIMAL_DURATION_MINUTES: yup.number().required(),
   ZOOM_WEBHOOK_SECRET_TOKEN: yup.string().required(),
-  ZOOM_SKIP_TOPIC_CONTAINS: yup.array()
-    .transform((__, topics) => (topics ? topics.split(',') : []))
+  ZOOM_SKIP_MINIMAL_DURATION_MINUTES: yup.number().required(),
+  ZOOM_SKIP_TOPIC_PLAYLIST_CONTAINS: yup.array()
+    .transform((__, topics) => (topics ? topics.split(',').map((x) => x.trim()) : []))
     .required(),
   ZOOM_SKIP_USERS_MAILS: yup.array() // TODO: запретить скачивание видео по емейлам
-    .transform((__, emails) => emails.split(','))
+    .transform((__, emails) => emails.split(',').map((x) => x.trim()))
     .required(),
   STORAGE_DIRPATH: yup.string()
-    .transform((__, paths) => path.resolve(__dirname, ...paths.split(',')))
+    .transform((__, paths) => path.resolve(__dirname, ...paths.split(',').map((x) => x.trim())))
     .required(),
 }).required();
 
