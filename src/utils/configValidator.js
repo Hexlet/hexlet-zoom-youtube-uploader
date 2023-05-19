@@ -24,6 +24,7 @@ const envConfigMap = {
 };
 
 const checkEnv = (expected) => ([current], schema) => schema.default(current === expected);
+const split = (str, lc = false) => str.split(',').map((x) => (lc ? x.trim().toLowerCase() : x.trim()));
 
 const configSchema = yup.object({
   NODE_ENV: yup.string().oneOf(_.values(envsMap)).required(),
@@ -41,13 +42,13 @@ const configSchema = yup.object({
   ZOOM_WEBHOOK_SECRET_TOKEN: yup.string().required(),
   ZOOM_SKIP_MINIMAL_DURATION_MINUTES: yup.number().required(),
   ZOOM_SKIP_TOPIC_PLAYLIST_CONTAINS: yup.array()
-    .transform((__, topics) => (topics ? topics.split(',').map((x) => x.trim()) : []))
+    .transform((__, topics = '') => split(topics, 'lc'))
     .required(),
-  ZOOM_SKIP_USERS_MAILS: yup.array() // TODO: запретить скачивание видео по емейлам
-    .transform((__, emails) => emails.split(',').map((x) => x.trim()))
+  ZOOM_SKIP_USERS_MAILS: yup.array()
+    .transform((__, emails = '') => split(emails, 'lc'))
     .required(),
   STORAGE_DIRPATH: yup.string()
-    .transform((__, paths) => path.resolve(__dirname, ...paths.split(',').map((x) => x.trim())))
+    .transform((__, paths = '') => path.resolve(__dirname, ...split(paths)))
     .required(),
 }).required();
 

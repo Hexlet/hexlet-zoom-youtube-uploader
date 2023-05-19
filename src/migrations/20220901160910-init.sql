@@ -6,6 +6,7 @@ CREATE TABLE events (
   id         INTEGER PRIMARY KEY,
   owner      TEXT    NOT NULL,
   state      TEXT    NOT NULL,
+  reason     TEXT    NOT NULL,
   data       TEXT    NOT NULL,
   createdAt  TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

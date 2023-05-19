@@ -130,6 +130,42 @@ export async function oauthCallback(data) {
     });
 }
 
+const skipHandlers = [
+  {
+    check: (payloadObject, config) => (
+      payloadObject.duration < config.ZOOM_SKIP_MINIMAL_DURATION_MINUTES
+    ),
+    message: 'Video is too short',
+  },
+  {
+    check: (payloadObject, config) => {
+      const preparedTopic = payloadObject.topic.trim().replace(' ', '');
+      const {
+        isParsed,
+        playlist,
+      } = parseTopic(preparedTopic);
+      if (!isParsed) return true;
+
+      return config.ZOOM_SKIP_TOPIC_PLAYLIST_CONTAINS.some((word) => playlist.includes(word));
+    },
+    message: 'Video topic contains stop-words in playlist part',
+  },
+  {
+    check: (payloadObject, config) => config.ZOOM_SKIP_USERS_MAILS
+      .some((email) => email === payloadObject.host_email.trim().toLowerCase()),
+    message: 'User excluded for video downloading',
+  },
+  {
+    check: (payloadObject) => {
+      const videoRecords = payloadObject.recording_files.filter(({ recording_type, status }) => (
+        (recording_type === 'shared_screen_with_speaker_view')
+        && (status === 'completed')
+      ));
+      return (videoRecords.length === 0);
+    },
+    message: 'Video not found',
+  },
+];
 export async function events(req) {
   const { body, query } = req;
   if (!query.owner) {
@@ -153,19 +189,20 @@ export async function events(req) {
     const data = body;
     const {
       topic,
-      duration,
       recording_files,
       start_time,
       account_id,
     } = data.payload.object;
-    const isTooShort = (duration < this.config.ZOOM_SKIP_MINIMAL_DURATION_MINUTES); // если запись менее N минут
-    // TODO: использовать ZOOM_SKIP_TOPIC_CONTAINS
-    const videoRecords = recording_files.filter(({ recording_type, status }) => (
-      (recording_type === 'shared_screen_with_speaker_view')
-      && (status === 'completed')
-    ));
-    const notHasVideo = videoRecords.length === 0;
-    const state = (notHasVideo || isTooShort)
+
+    const skipReasons = skipHandlers.reduce((acc, { check, message }) => {
+      const skip = check(data.payload.object, this.config);
+      if (skip) {
+        acc.push(message);
+      }
+      return acc;
+    }, []);
+
+    const state = (skipReasons.length > 0)
       ? processingStateEnum.rejected
       : processingStateEnum.ready;
 
@@ -173,17 +210,20 @@ export async function events(req) {
       .add({
         owner,
         state,
+        reason: skipReasons.join(';'),
         data,
       })
       .then(({ lastID: eventId } = {}) => {
-        const isFailedOperation = (!eventId || (state === processingStateEnum.rejected));
-        if (isFailedOperation) {
-          return [{ message: 'Videos is too short or not found', params: {} }, null];
+        if (!eventId) {
+          throw new BadRequestError('Database error on save event');
         }
+        if (processingStateEnum.rejected) {
+          return [{ message: 'Event rejected for processing', params: skipReasons }, null];
+        }
+
         return [
           { message: 'All done', params: {} },
           () => {
-            // TODO: придумать белый список или чёрный список для записей, которые не нужно загружать
             const preparedTopic = topic.trim().replace(' ', '');
             const {
               isParsed,
@@ -206,6 +246,11 @@ export async function events(req) {
               youtubeUrl: '',
               zoomAuthorId: account_id,
             });
+
+            const videoRecords = recording_files.filter(({ recording_type, status }) => (
+              (recording_type === 'shared_screen_with_speaker_view')
+              && (status === 'completed')
+            ));
 
             const preparedRecordsPromises = videoRecords.map((record) => {
               const recordMeta = makeMeta();
