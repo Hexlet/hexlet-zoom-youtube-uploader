@@ -10,6 +10,7 @@ import {
   buildVideoPath,
   processingStateEnum,
   incomingEventEnum,
+  routeEnum,
 } from '../utils/helpers.js';
 import {
   BadRequestError, ForbiddenError,
@@ -31,10 +32,21 @@ export async function reqister(data) {
     .then((params) => {
       const usp = new URLSearchParams();
       usp.append('owner', params.owner);
+
+      const registrationUrlParts = [
+        this.config.DOMAIN,
+        routeEnum.prefix,
+        routeEnum.version.v1,
+        routeEnum.oauth.url,
+        '?',
+        usp.toString(),
+      ];
+      const url = registrationUrlParts.join('');
+
       return {
-        message: `Registration complete. Go to ${this.config.DOMAIN}/oauth2?${usp.toString()}`,
+        message: 'Registration complete. Go to url from params',
         params: {
-          url: `${this.config.DOMAIN}/oauth2?${usp.toString()}`,
+          url,
           method: 'GET',
         },
       };
