@@ -16,9 +16,17 @@ export class GoogleClient {
   }
 
   async authorize({ owner, code }) {
+    console.log('GoogleClient authorize');
     return this.getBy({ owner })
-      .then((client) => client.oauth.getToken(code))
-      .then(({ tokens }) => this.save({ owner, tokens }));
+      .then((client) => client.oauth.getToken(code)
+        .then(({ tokens }) => ({
+          owner: client.owner,
+          tokens,
+          channel_id: client.channel_id,
+          client_id: client.client_id,
+          client_secret: client.client_secret,
+        })))
+      .then((params) => this.save(params));
   }
 
   // private methods
@@ -47,14 +55,16 @@ export class GoogleClient {
       client_secret,
       ...(tokens ? { tokens: JSON.stringify(tokens) } : {}),
     };
+    console.log('GoogleClient save', params);
 
     return this.storage.readOne({ owner })
       .then((savedParams) => {
         if (savedParams) {
-          return this.storage.update({
+          const updatedParams = {
             id: savedParams.id,
             ...params,
-          }).then(() => savedParams);
+          };
+          return this.storage.update(updatedParams).then(() => updatedParams);
         }
 
         return this.storage.add(params).then(() => params);
@@ -79,6 +89,7 @@ export class GoogleClient {
       owner,
       channel_id,
     };
+    console.log('GoogleClient build', client, tokens);
 
     client.oauth = new google.auth.OAuth2(
       client_id,
@@ -102,8 +113,10 @@ export class GoogleClient {
     client.oauth.authURL = authURL.toString();
 
     if (tokens) {
+      console.log('GoogleClient tokens');
       // TODO: обновление токена происходит по запросу. Но кто и когда запрос делает? Вроде должна сама либа, но бывают ошибки токена. Может надо перезаписывать весь объект client?
       client.oauth.on('tokens', (refreshedTokens) => {
+        this.logger.debug('refresh tokens');
         this.storage.readOne({ owner }).then((savedParams) => {
           const savedTokens = JSON.parse(savedParams.tokens);
           const combinedTokens = {
@@ -116,6 +129,7 @@ export class GoogleClient {
             id: savedParams.id,
             tokens: JSON.stringify(combinedTokens),
           });
+          this.logger.debug('tokens refreshed');
         });
       });
 
