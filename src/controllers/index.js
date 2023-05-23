@@ -44,7 +44,7 @@ export async function reqister(data) {
       const url = registrationUrlParts.join('');
 
       return {
-        message: 'Registration complete. Go to url from params',
+        message: 'Registration complete. Go to url from params for authorize Youtube channel',
         params: {
           url,
           method: 'GET',
@@ -229,7 +229,7 @@ export async function events(req) {
         if (!eventId) {
           throw new BadRequestError('Database error on save event');
         }
-        if (processingStateEnum.rejected) {
+        if (state === processingStateEnum.rejected) {
           return [{ message: 'Event rejected for processing', params: skipReasons }, null];
         }
 
