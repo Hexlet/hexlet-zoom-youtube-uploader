@@ -81,8 +81,6 @@ export const prepareYoutubeTask = (server) => {
       let hasQuota = true;
 
       do {
-        console.log('\n', '\n');
-        console.log('Load playlists');
         const [client] = authorizedClientItemMap[index];
         index += 1;
         await client.getPlayLists();
@@ -91,8 +89,6 @@ export const prepareYoutubeTask = (server) => {
 
       do {
         const [client, item] = authorizedClientItemMap[index];
-        console.log('\n', '\n');
-        console.log(`Upload item id=${item.id}`);
         itemsInProcessing.add(item.id);
         const { data } = item;
 
@@ -110,7 +106,6 @@ export const prepareYoutubeTask = (server) => {
         item.loadToYoutubeLastAction = loadToYoutubeActionEnum.upload;
 
         hasQuota = client.checkHasQuota({ youtubePlaylistTitle: data.meta.youtubePlaylist });
-        console.log({ hasQuota });
 
         if (!hasQuota) {
           item.loadToYoutubeError = 'Not enough quota for this video';
@@ -119,7 +114,6 @@ export const prepareYoutubeTask = (server) => {
             .finally(() => {
               itemsInProcessing.delete(item.id);
             });
-          console.log('Stopped loop because quota exceeded');
           return true;
         }
 
@@ -146,6 +140,8 @@ export const prepareYoutubeTask = (server) => {
           })
           .then((res) => {
             switch (item.loadToYoutubeState) {
+              // TODO: запись иногда повисает в статусе processing, наверное из-за нескольких клиентов
+              // TODO: Event list has unexpected items. events=playlistItems.insert
               case loadStateEnum.ready: {
                 item.loadToYoutubeState = loadStateEnum.processing;
                 data.meta.youtubeUrl = `https://youtu.be/${res.data.id}`;
@@ -190,7 +186,6 @@ export const prepareYoutubeTask = (server) => {
             itemsInProcessing.delete(item.id);
           });
         index += 1;
-        console.log('Video uploaded (maybe)');
       } while (index < authorizedClientItemMap.length && hasQuota);
 
       return true;

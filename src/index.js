@@ -324,22 +324,12 @@ export const app = async (envName) => {
   const db = await initDatabase(server);
   const cronJobs = initTasks(server);
 
+  // TODO: выпилить owner и переделать так, чтобы данные по гуглоклиенту зашивались в .env
   const googleClient = new GoogleClient({
     oauthRedirectURL: config.OAUTH_REDIRECT_URL,
     storage: server.storage.youtubeClients,
-    logger: server.log,
   });
   server.decorate('googleClient', googleClient);
-
-  // TODO: выпилить, когда разберусь с обновлением токена и квотами
-  // console.log('----- jopa lala');
-  // await server.storage.records.read({ loadFromZoomState: 'failed' }, { createdAt: 'DESC' })
-  // .then((records) => Promise.all(records
-  //   .map((record) => server.storage.records.update({
-  //     id: record.id,
-  //     loadToYoutubeState: 'ready',
-  //     loadToYoutubeError: '',
-  //   }))));
 
   const stop = async () => {
     server.log.info('Stop app', config);

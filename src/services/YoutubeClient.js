@@ -124,8 +124,6 @@ export class YoutubeClient {
       events.push('playlists.insert');
     }
 
-    console.log('checkHasQuota');
-
     return this.quotaService.check(...events);
   }
 

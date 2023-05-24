@@ -2,10 +2,9 @@ import { google } from 'googleapis';
 import { YoutubeClient } from './YoutubeClient.js';
 
 export class GoogleClient {
-  constructor({ oauthRedirectURL, storage, logger }) {
+  constructor({ oauthRedirectURL, storage }) {
     this.config = { oauthRedirectURL };
     this.storage = storage;
-    this.logger = logger;
     this.clientByOwnerMap = new Map([]);
   }
 
@@ -16,7 +15,6 @@ export class GoogleClient {
   }
 
   async authorize({ owner, code }) {
-    console.log('GoogleClient authorize');
     return this.getBy({ owner })
       .then((client) => client.oauth.getToken(code)
         .then(({ tokens }) => ({
@@ -55,7 +53,6 @@ export class GoogleClient {
       client_secret,
       ...(tokens ? { tokens: JSON.stringify(tokens) } : {}),
     };
-    console.log('GoogleClient save', params);
 
     return this.storage.readOne({ owner })
       .then((savedParams) => {
@@ -89,7 +86,6 @@ export class GoogleClient {
       owner,
       channel_id,
     };
-    console.log('GoogleClient build', client, tokens);
 
     client.oauth = new google.auth.OAuth2(
       client_id,
@@ -113,10 +109,7 @@ export class GoogleClient {
     client.oauth.authURL = authURL.toString();
 
     if (tokens) {
-      console.log('GoogleClient tokens');
-      // TODO: обновление токена происходит по запросу. Но кто и когда запрос делает? Вроде должна сама либа, но бывают ошибки токена. Может надо перезаписывать весь объект client?
       client.oauth.on('tokens', (refreshedTokens) => {
-        this.logger.debug('refresh tokens');
         this.storage.readOne({ owner }).then((savedParams) => {
           const savedTokens = JSON.parse(savedParams.tokens);
           const combinedTokens = {
@@ -129,7 +122,6 @@ export class GoogleClient {
             id: savedParams.id,
             tokens: JSON.stringify(combinedTokens),
           });
-          this.logger.debug('tokens refreshed');
         });
       });
 
