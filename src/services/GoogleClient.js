@@ -70,7 +70,7 @@ export class GoogleClient {
     return this.client.oauth.getToken(code)
       .then(({ tokens }) => this.storage.update({
         id: this.config.googleStorageId,
-        value: { tokens },
+        data: { tokens },
       }))
       .then(() => this.buildYoutubeClient());
   }
@@ -115,6 +115,7 @@ export class GoogleClient {
           data: quotaParams,
         }),
       );
+      await this.client.youtube.init();
     }
   }
 }

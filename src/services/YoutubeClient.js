@@ -17,6 +17,10 @@ export class YoutubeClient {
     this.quotaService = new YoutubeQuotaService({ lastUpdateDay, rest });
   }
 
+  async init() {
+    return this.onQuotaUpdate(this.quotaService.get());
+  }
+
   async getPlayLists() {
     if (this.playlistIdMap.size > 0) {
       return false;
@@ -139,6 +143,8 @@ export class YoutubeClient {
   }
 
   setQuotaExceeded() {
-    return this.quotaService.setExceeded();
+    this.quotaService.setExceeded();
+    this.onQuotaUpdate(this.quotaService.get());
+    return true;
   }
 }
