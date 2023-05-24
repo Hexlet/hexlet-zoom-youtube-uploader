@@ -5,16 +5,16 @@ import { AppError } from '../utils/errors.js';
 export class YoutubeClient {
   static isNotClient = false;
 
-  constructor(client, channelId) {
+  constructor(client, { channelId, lastUpdateDay = null, rest = null }, onQuotaUpdate) {
+    console.log('\n', 'YoutubeClient', { channelId, lastUpdateDay, rest }, '\n');
     if (!client) {
       throw new AppError('Empty Google client for Youtube client');
     }
     this.client = client;
     this.channelId = channelId;
     this.playlistIdMap = new Map([]);
-    this.quotaService = (Date.now() < new Date(2023, 4, 23, 6, 0))
-      ? new YoutubeQuotaService({ lastUpdateDay: 22, rest: 98 })
-      : new YoutubeQuotaService();
+    this.onQuotaUpdate = onQuotaUpdate;
+    this.quotaService = new YoutubeQuotaService({ lastUpdateDay, rest });
   }
 
   async getPlayLists() {
@@ -22,8 +22,10 @@ export class YoutubeClient {
       return false;
     }
 
-    const loadPlayLists = (pageToken = undefined) => {
+    const loadPlayLists = async (pageToken = undefined) => {
       this.quotaService.pay('playlists.list');
+      this.onQuotaUpdate(this.quotaService.get());
+
       return this.client.playlists
         .list({
           part: ['id', 'snippet'],
@@ -48,6 +50,8 @@ export class YoutubeClient {
 
   async createPlaylist({ title }) {
     this.quotaService.pay('playlists.insert');
+    this.onQuotaUpdate(this.quotaService.get());
+
     return this.client.playlists
       .insert({
         part: ['id', 'snippet', 'status'],
@@ -67,6 +71,7 @@ export class YoutubeClient {
 
   async addToPlaylist({ title, videoId }) {
     this.quotaService.pay('playlistItems.insert');
+    this.onQuotaUpdate(this.quotaService.get());
     const playlistId = this.playlistIdMap.get(title);
 
     return this.client.playlistItems
@@ -96,6 +101,8 @@ export class YoutubeClient {
 
   async uploadVideo({ title, description, filepath }) {
     this.quotaService.pay('videos.insert');
+    this.onQuotaUpdate(this.quotaService.get());
+
     return this.client.videos
       .insert({
         part: ['id', 'snippet', 'contentDetails', 'status'],
@@ -115,10 +122,14 @@ export class YoutubeClient {
       });
   }
 
-  checkHasQuota({ youtubePlaylistTitle }) {
+  checkHasQuota() {
+    return this.quotaService.check('playlists.list');
+  }
+
+  checkHasQuotaForVideo({ youtubePlaylistTitle }) {
     const events = [
       'videos.insert',
-      'playlistitems.insert',
+      'playlistItems.insert',
     ];
     if (this.playlistIdMap.has(youtubePlaylistTitle)) {
       events.push('playlists.insert');

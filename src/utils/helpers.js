@@ -30,10 +30,6 @@ export const routeEnum = {
     method: 'POST',
     url: '',
   },
-  register: {
-    method: 'POST',
-    url: '/oauth2',
-  },
   oauth: {
     method: 'GET',
     url: '/oauth2',

@@ -4,7 +4,6 @@
 
 CREATE TABLE events (
   id         INTEGER PRIMARY KEY,
-  owner      TEXT    NOT NULL,
   state      TEXT    NOT NULL,
   reason     TEXT    NOT NULL,
   data       TEXT    NOT NULL,
@@ -18,7 +17,6 @@ CREATE INDEX events_ix_createdAt ON events (createdAt);
 CREATE TABLE records (
   id                       INTEGER PRIMARY KEY,
   eventId                  INTEGER NOT NULL,
-  owner                    TEXT    NOT NULL,
   loadFromZoomState        TEXT    NOT NULL,
   loadFromZoomError        TEXT    NOT NULL DEFAULT "",
   loadToYoutubeState       TEXT    NOT NULL,
@@ -35,16 +33,13 @@ CREATE INDEX records_ix_youtube ON records (loadToYoutubeState);
 CREATE INDEX records_ix_createdAt ON records (createdAt);
 
 
-CREATE TABLE google_clients (
-  id            INTEGER PRIMARY KEY,
-  owner         TEXT    NOT NULL,
-  client_id     TEXT    NOT NULL,
-  channel_id    TEXT    NOT NULL DEFAULT "",
-  client_secret TEXT    NOT NULL,
-  tokens        TEXT    NOT NULL DEFAULT ""
+CREATE TABLE extra (
+  id   INTEGER PRIMARY KEY,
+  key  TEXT    NOT NULL,
+  data TEXT    NOT NULL
 );
 
-CREATE INDEX google_clients_ix_owner ON google_clients (owner);
+CREATE INDEX extra_ix_key ON extra (key);
 
 --------------------------------------------------------------------------------
 -- Down
@@ -58,8 +53,8 @@ DROP INDEX records_ix_zoom;
 DROP INDEX records_ix_youtube;
 DROP INDEX records_ix_createdAt;
 
-DROP INDEX google_clients_ix_owner;
+DROP INDEX extra_ix_key;
 
 DROP TABLE events;
 DROP TABLE records;
-DROP TABLE google_clients;
+DROP TABLE extra;

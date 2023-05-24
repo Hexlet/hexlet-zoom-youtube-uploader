@@ -50,7 +50,6 @@ const initServer = (config) => {
   });
 
   routeEnum.events.url = `/${config.ROUTE_UUID}`;
-  config.OAUTH_REDIRECT_URL = `${config.DOMAIN}${routeEnum.oauthCallback.url}`;
 
   server.decorate('config', config);
 
@@ -86,25 +85,6 @@ const initServer = (config) => {
     url: `${routeEnum.prefix}${routeEnum.version.v1}${routeEnum.main.url}`,
     handler(req, res) {
       res.code(constants.HTTP_STATUS_OK).send({ message: 'Hi!', params: {} });
-    },
-  });
-
-  server.route({
-    method: routeEnum.register.method,
-    url: `${routeEnum.prefix}${routeEnum.version.v1}${routeEnum.register.url}`,
-    handler(req, res) {
-      const data = {
-        body: req.body || {},
-        query: req.query || {},
-      };
-      const action = controller.reqister.bind(server);
-
-      return action(data)
-        .then((result) => {
-          const message = result && result.message ? result.message : result.toString();
-          const params = result && result.params ? result.params : {};
-          return res.code(constants.HTTP_STATUS_OK).send({ message, params });
-        });
     },
   });
 
@@ -294,7 +274,7 @@ const initDatabase = async (server) => {
   const storage = {
     events: generateQB('events'),
     records: generateQB('records'),
-    youtubeClients: generateQB('google_clients'),
+    extra: generateQB('extra'),
   };
 
   server.decorate('storage', storage);
@@ -322,14 +302,19 @@ export const app = async (envName) => {
   const config = await configValidator(envName);
   const server = initServer(config);
   const db = await initDatabase(server);
-  const cronJobs = initTasks(server);
 
-  // TODO: выпилить owner и переделать так, чтобы данные по гуглоклиенту зашивались в .env
   const googleClient = new GoogleClient({
-    oauthRedirectURL: config.OAUTH_REDIRECT_URL,
-    storage: server.storage.youtubeClients,
+    oauthRedirectURL: `${config.DOMAIN}${routeEnum.oauthCallback.url}`,
+    clientId: config.GOOGLE_CLIENT_ID,
+    clientSecret: config.GOOGLE_CLIENT_SECRET,
+    channelId: config.GOOGLE_CHANNEL_ID,
+    secretUUID: config.ROUTE_UUID,
+    storage: server.storage.extra,
   });
+  await googleClient.init();
   server.decorate('googleClient', googleClient);
+
+  const cronJobs = initTasks(server);
 
   const stop = async () => {
     server.log.info('Stop app', config);

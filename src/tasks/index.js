@@ -55,145 +55,138 @@ export const prepareDownloadTask = (server) => {
 export const prepareYoutubeTask = (server) => {
   const itemsInProcessing = new Set();
 
-  return () => server.storage.records
-    .read(
-      {
-        loadFromZoomState: loadStateEnum.success,
-        loadToYoutubeState: loadStateEnum.ready,
-      },
-      { createdAt: 'ASC' },
-    )
-    .then((items) => {
-      const filteredItems = items.filter((item) => !itemsInProcessing.has(item.id));
-      const clientItemMapPromises = filteredItems.map((item) => server.googleClient
-        .getBy({ owner: item.owner })
-        .then((googleClient) => {
-          const youtubeClient = googleClient.youtube.isNotClient ? null : googleClient.youtube;
-          return [youtubeClient, item];
-        }));
+  return () => {
+    if (server.googleClient.client.youtube.isNotClient) {
+      return Promise.resolve();
+    }
 
-      return Promise.all(clientItemMapPromises);
-    })
-    .then(async (clientItemMap) => {
-      const authorizedClientItemMap = clientItemMap.filter(([youtubeClient]) => youtubeClient);
-      if (authorizedClientItemMap.length === 0) return true;
-      let index = 0;
-      let hasQuota = true;
+    return server.storage.records
+      .read(
+        {
+          loadFromZoomState: loadStateEnum.success,
+          loadToYoutubeState: loadStateEnum.ready,
+        },
+        { createdAt: 'ASC' },
+      )
+      .then(async (items) => {
+        const filteredItems = items.filter((item) => !itemsInProcessing.has(item.id));
+        if (filteredItems.length === 0) {
+          return true;
+        }
+        const client = server.googleClient.youtube;
+        let hasQuota = client.checkHasQuota();
+        if (!hasQuota) return true;
 
-      do {
-        const [client] = authorizedClientItemMap[index];
-        index += 1;
         await client.getPlayLists();
-      } while (index < authorizedClientItemMap.length);
-      index = 0;
+        let index = 0;
 
-      do {
-        const [client, item] = authorizedClientItemMap[index];
-        itemsInProcessing.add(item.id);
-        const { data } = item;
+        do {
+          const item = filteredItems[index];
+          itemsInProcessing.add(item.id);
+          const { data } = item;
 
-        if (!fs.existsSync(data.meta.filepath)) {
-          item.loadToYoutubeState = loadStateEnum.failed;
-          item.loadToYoutubeError = 'File not exists';
-          await server.storage.records.update(item)
+          if (!fs.existsSync(data.meta.filepath)) {
+            item.loadToYoutubeState = loadStateEnum.failed;
+            item.loadToYoutubeError = 'File not exists';
+            await server.storage.records.update(item)
+              .finally(() => {
+                itemsInProcessing.delete(item.id);
+              });
+            index += 1;
+            // eslint-disable-next-line no-continue
+            continue;
+          }
+          item.loadToYoutubeLastAction = loadToYoutubeActionEnum.upload;
+
+          hasQuota = client.checkHasQuotaForVideo({ youtubePlaylistTitle: data.meta.youtubePlaylist });
+
+          if (!hasQuota) {
+            item.loadToYoutubeError = 'Not enough quota for this video';
+            item.loadToYoutubeState = loadStateEnum.ready;
+            await server.storage.records.update(item)
+              .finally(() => {
+                itemsInProcessing.delete(item.id);
+              });
+            return true;
+          }
+
+          // return true;
+          await client
+            .uploadVideo({
+              title: data.meta.youtubeName,
+              description: data.meta.youtubeDescription,
+              filepath: data.meta.filepath,
+            })
+            .catch((err) => {
+              if (isYoutubeQuotaError(err)) {
+                client.setQuotaExceeded();
+                item.loadToYoutubeError = err.message;
+                item.loadToYoutubeState = loadStateEnum.unfinally;
+                hasQuota = false;
+              } else {
+                server.log.error(err);
+                Sentry.setContext('uploadVideo', err);
+                Sentry.captureException(err);
+                item.loadToYoutubeError = err.message;
+                item.loadToYoutubeState = loadStateEnum.failed;
+              }
+            })
+            .then((res) => {
+              switch (item.loadToYoutubeState) {
+                // TODO: запись иногда повисает в статусе processing, наверное из-за нескольких клиентов
+                case loadStateEnum.ready: {
+                  item.loadToYoutubeState = loadStateEnum.processing;
+                  data.meta.youtubeUrl = `https://youtu.be/${res.data.id}`;
+                  return server.storage.records.update(item).then(() => res.data.id);
+                }
+                case loadStateEnum.unfinally: {
+                  item.loadToYoutubeState = loadStateEnum.ready;
+                  return server.storage.records.update(item).then(() => null);
+                }
+                default: {
+                  return server.storage.records.update(item).then(() => null);
+                }
+              }
+            })
+            .then((videoId) => {
+              if (item.loadToYoutubeState === loadStateEnum.processing) {
+                item.loadToYoutubeLastAction = loadToYoutubeActionEnum.playlist;
+                return client
+                  .insertToPlaylist({
+                    videoId,
+                    title: data.meta.youtubePlaylist,
+                  })
+                  .then(() => {
+                    item.loadToYoutubeError = '';
+                    item.loadToYoutubeState = loadStateEnum.success;
+                    return server.storage.records.update(item);
+                  })
+                  .catch((err) => {
+                    if (isYoutubeQuotaError(err)) {
+                      client.setQuotaExceeded();
+                      item.loadToYoutubeError = err.message;
+                      item.loadToYoutubeState = loadStateEnum.unfinally;
+                      hasQuota = false;
+                      return server.storage.records.update(item);
+                    }
+                    throw err;
+                  });
+              }
+              return true;
+            })
             .finally(() => {
               itemsInProcessing.delete(item.id);
             });
           index += 1;
-          // eslint-disable-next-line no-continue
-          continue;
-        }
-        item.loadToYoutubeLastAction = loadToYoutubeActionEnum.upload;
+        } while (index < filteredItems.length && hasQuota);
 
-        hasQuota = client.checkHasQuota({ youtubePlaylistTitle: data.meta.youtubePlaylist });
-
-        if (!hasQuota) {
-          item.loadToYoutubeError = 'Not enough quota for this video';
-          item.loadToYoutubeState = loadStateEnum.ready;
-          await server.storage.records.update(item)
-            .finally(() => {
-              itemsInProcessing.delete(item.id);
-            });
-          return true;
-        }
-
-        // return true;
-        await client
-          .uploadVideo({
-            title: data.meta.youtubeName,
-            description: data.meta.youtubeDescription,
-            filepath: data.meta.filepath,
-          })
-          .catch((err) => {
-            if (isYoutubeQuotaError(err)) {
-              client.setQuotaExceeded();
-              item.loadToYoutubeError = err.message;
-              item.loadToYoutubeState = loadStateEnum.unfinally;
-              hasQuota = false;
-            } else {
-              server.log.error(err);
-              Sentry.setContext('uploadVideo', err);
-              Sentry.captureException(err);
-              item.loadToYoutubeError = err.message;
-              item.loadToYoutubeState = loadStateEnum.failed;
-            }
-          })
-          .then((res) => {
-            switch (item.loadToYoutubeState) {
-              // TODO: запись иногда повисает в статусе processing, наверное из-за нескольких клиентов
-              // TODO: Event list has unexpected items. events=playlistItems.insert
-              case loadStateEnum.ready: {
-                item.loadToYoutubeState = loadStateEnum.processing;
-                data.meta.youtubeUrl = `https://youtu.be/${res.data.id}`;
-                return server.storage.records.update(item).then(() => res.data.id);
-              }
-              case loadStateEnum.unfinally: {
-                item.loadToYoutubeState = loadStateEnum.ready;
-                return server.storage.records.update(item).then(() => null);
-              }
-              default: {
-                return server.storage.records.update(item).then(() => null);
-              }
-            }
-          })
-          .then((videoId) => {
-            if (item.loadToYoutubeState === loadStateEnum.processing) {
-              item.loadToYoutubeLastAction = loadToYoutubeActionEnum.playlist;
-              return client
-                .insertToPlaylist({
-                  videoId,
-                  title: data.meta.youtubePlaylist,
-                })
-                .then(() => {
-                  item.loadToYoutubeError = '';
-                  item.loadToYoutubeState = loadStateEnum.success;
-                  return server.storage.records.update(item);
-                })
-                .catch((err) => {
-                  if (isYoutubeQuotaError(err)) {
-                    client.setQuotaExceeded();
-                    item.loadToYoutubeError = err.message;
-                    item.loadToYoutubeState = loadStateEnum.unfinally;
-                    hasQuota = false;
-                    return server.storage.records.update(item);
-                  }
-                  throw err;
-                });
-            }
-            return true;
-          })
-          .finally(() => {
-            itemsInProcessing.delete(item.id);
-          });
-        index += 1;
-      } while (index < authorizedClientItemMap.length && hasQuota);
-
-      return true;
-    }).catch((err) => {
-      server.log.error(err);
-      Sentry.setContext('prepareDownloadTask', err);
-      Sentry.captureException(err);
-    });
+        return true;
+      }).catch((err) => {
+        server.log.error(err);
+        Sentry.setContext('prepareDownloadTask', err);
+        Sentry.captureException(err);
+      });
+  };
 };
 
 // TODO: сделать задачу на удаление файлов

@@ -1,6 +1,5 @@
 import * as luxon from 'luxon';
 import crypto from 'crypto';
-import yup from 'yup';
 import flat from 'flat';
 import {
   padString,
@@ -10,64 +9,42 @@ import {
   buildVideoPath,
   processingStateEnum,
   incomingEventEnum,
-  routeEnum,
 } from '../utils/helpers.js';
 import {
-  BadRequestError, ForbiddenError,
+  BadRequestError,
 } from '../utils/errors.js';
 
 const { DateTime } = luxon;
 
-const googleClientBodySchema = yup.object({
-  owner: yup.string().required(),
-  client_secret: yup.string().required(),
-  client_id: yup.string().required(),
-  channel_id: yup.string().required(),
-}).required();
-
-export async function reqister(data) {
-  return googleClientBodySchema
-    .validate(data.body, { abortEarly: false, stripUnknown: true })
-    .then((params) => this.googleClient.save(params).then(() => params))
-    .then((params) => {
-      const usp = new URLSearchParams();
-      usp.append('owner', params.owner);
-
-      const registrationUrlParts = [
-        this.config.DOMAIN,
-        routeEnum.prefix,
-        routeEnum.version.v1,
-        routeEnum.oauth.url,
-        '?',
-        usp.toString(),
-      ];
-      const url = registrationUrlParts.join('');
-
-      return {
-        message: 'Registration complete. Go to url from params for authorize Youtube channel',
-        params: {
-          url,
-          method: 'GET',
-        },
-      };
-    });
-}
-
 export async function oauth(data) {
   const { query } = data;
-  if (!query.owner) {
-    throw new BadRequestError('Channel owner required');
+  if (!query.uuid) {
+    throw new BadRequestError('UUID is required');
+  }
+  if (query.uuid !== this.config.ROUTE_UUID) {
+    throw new BadRequestError('Incorrect UUID');
+  }
+
+  return this.googleClient.getAuthUrl();
+}
+
+export async function oauthCallback(data) {
+  const { query } = data;
+  if (!query.code) {
+    throw new BadRequestError('Not found oauth code');
+  }
+  if (!query.state) {
+    throw new BadRequestError('Not found oauth state');
+  }
+
+  const { uuid } = JSON.parse(query.state);
+  if (uuid !== this.config.ROUTE_UUID) {
+    throw new BadRequestError('Incorrect UUID');
   }
 
   return this.googleClient
-    .getBy({ owner: query.owner })
-    .then((service) => {
-      if (service === null) {
-        throw new ForbiddenError('YouTube client was not registered');
-      }
-
-      return service.oauth.authURL;
-    });
+    .authorize({ code: query.code })
+    .then(() => ({ message: 'All done. Close this tab' }));
 }
 
 const formatEnum = {
@@ -115,33 +92,6 @@ export async function report(params) {
     });
 }
 
-export async function oauthCallback(data) {
-  const { query } = data;
-  if (!query.code) {
-    throw new BadRequestError('Not found oauth code');
-  }
-  if (!query.state) {
-    throw new BadRequestError('Not found oauth state');
-  }
-
-  const { owner } = JSON.parse(query.state);
-
-  return this.googleClient
-    .getBy({ owner })
-    .then((service) => {
-      if (service === null) {
-        throw new ForbiddenError('YouTube client was not registered');
-      }
-
-      return this.googleClient
-        .authorize({
-          owner,
-          code: query.code,
-        })
-        .then(() => ({ message: 'All done. Close this tab' }));
-    });
-}
-
 const skipHandlers = [
   {
     check: (payloadObject, config) => (
@@ -179,11 +129,7 @@ const skipHandlers = [
   },
 ];
 export async function events(req) {
-  const { body, query } = req;
-  if (!query.owner) {
-    throw new BadRequestError('Channel owner required');
-  }
-  const { owner } = query;
+  const { body } = req;
 
   if (body.event === incomingEventEnum.validation) {
     const hashForValidate = crypto
@@ -220,7 +166,6 @@ export async function events(req) {
 
     return this.storage.events
       .add({
-        owner,
         state,
         reason: skipReasons.join(';'),
         data,
@@ -296,7 +241,6 @@ export async function events(req) {
 
               return this.storage.records
                 .add({
-                  owner,
                   eventId,
                   loadFromZoomState: loadStateEnum.ready,
                   loadToYoutubeState: loadStateEnum.ready,

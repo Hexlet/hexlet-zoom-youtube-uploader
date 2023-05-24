@@ -1,99 +1,44 @@
 import { google } from 'googleapis';
 import { YoutubeClient } from './YoutubeClient.js';
+import { AppError } from '../utils/errors.js';
 
 export class GoogleClient {
-  constructor({ oauthRedirectURL, storage }) {
-    this.config = { oauthRedirectURL };
+  constructor({
+    oauthRedirectURL,
+    clientId,
+    clientSecret,
+    channelId,
+    secretUUID,
+    storage,
+  }) {
     this.storage = storage;
-    this.clientByOwnerMap = new Map([]);
-  }
-
-  async getBy({ owner }) {
-    return this.clientByOwnerMap.has(owner)
-      ? this.clientByOwnerMap.get(owner)
-      : this.findByOwner(owner);
-  }
-
-  async authorize({ owner, code }) {
-    return this.getBy({ owner })
-      .then((client) => client.oauth.getToken(code)
-        .then(({ tokens }) => ({
-          owner: client.owner,
-          tokens,
-          channel_id: client.channel_id,
-          client_id: client.client_id,
-          client_secret: client.client_secret,
-        })))
-      .then((params) => this.save(params));
-  }
-
-  // private methods
-
-  async findByOwner(owner) {
-    return this.storage.readOne({ owner })
-      .then((params) => (params ? this.build(params) : null))
-      .then((client) => {
-        if (!client) return null;
-        this.clientByOwnerMap.set(owner, client);
-        return client;
-      });
-  }
-
-  async save({
-    owner,
-    client_id,
-    channel_id,
-    client_secret,
-    tokens = null,
-  }) {
-    const params = {
-      owner,
-      client_id,
-      channel_id,
-      client_secret,
-      ...(tokens ? { tokens: JSON.stringify(tokens) } : {}),
+    this.config = {
+      oauthRedirectURL,
+      clientId,
+      clientSecret,
+      channelId,
+      secretUUID,
+      googleStorageId: 0,
+      youtubeStorageId: 0,
     };
-
-    return this.storage.readOne({ owner })
-      .then((savedParams) => {
-        if (savedParams) {
-          const updatedParams = {
-            id: savedParams.id,
-            ...params,
-          };
-          return this.storage.update(updatedParams).then(() => updatedParams);
-        }
-
-        return this.storage.add(params).then(() => params);
-      })
-      .then((savedParams) => this.build(savedParams))
-      .then((client) => {
-        this.clientByOwnerMap.set(owner, client);
-        return client;
-      });
-  }
-
-  build({
-    owner,
-    client_id,
-    channel_id,
-    client_secret,
-    tokens = null,
-  }) {
-    const client = {
+    this.client = {
       oauth: {},
       youtube: { isNotClient: true },
-      owner,
-      channel_id,
     };
+  }
 
-    client.oauth = new google.auth.OAuth2(
-      client_id,
-      client_secret,
+  getAuthUrl() {
+    return this.client.oauth.authURL;
+  }
+
+  async init() {
+    this.client.oauth = new google.auth.OAuth2(
+      this.config.clientId,
+      this.config.clientSecret,
       this.config.oauthRedirectURL,
     );
 
-    const authorizationUrl = client.oauth.generateAuthUrl({
+    const authorizationUrl = this.client.oauth.generateAuthUrl({
       access_type: 'offline',
       scope: [
         'https://www.googleapis.com/auth/youtube.readonly',
@@ -103,38 +48,73 @@ export class GoogleClient {
       include_granted_scopes: true,
       prompt: 'consent',
     });
-
     const authURL = new URL(authorizationUrl);
-    authURL.searchParams.set('state', JSON.stringify({ owner }));
-    client.oauth.authURL = authURL.toString();
+    authURL.searchParams.append('state', JSON.stringify({ uuid: this.config.secretUUID }));
+    this.client.oauth.authURL = authURL.toString();
+
+    let savedConfigGoogle = await this.storage.readOne({ key: 'google' });
+    if (!savedConfigGoogle) {
+      savedConfigGoogle = await this.storage.add({ key: 'google', data: {} });
+    }
+    let savedConfigYoutube = await this.storage.readOne({ key: 'youtube' });
+    if (!savedConfigYoutube) {
+      savedConfigYoutube = await this.storage.add({ key: 'youtube', data: {} });
+    }
+    this.config.googleStorageId = savedConfigGoogle.lastID || savedConfigGoogle.id;
+    this.config.youtubeStorageId = savedConfigYoutube.lastID || savedConfigYoutube.id;
+
+    return this.buildYoutubeClient();
+  }
+
+  async authorize({ code }) {
+    return this.client.oauth.getToken(code)
+      .then(({ tokens }) => this.storage.update({
+        id: this.config.googleStorageId,
+        value: { tokens },
+      }))
+      .then(() => this.buildYoutubeClient());
+  }
+
+  async buildYoutubeClient() {
+    const savedConfig = await this.storage.readOne({ id: this.config.googleStorageId });
+    if (!(savedConfig && savedConfig.data)) {
+      throw new AppError('Not found saved tokens');
+    }
+    const { tokens = null } = savedConfig.data;
 
     if (tokens) {
-      client.oauth.on('tokens', (refreshedTokens) => {
-        this.storage.readOne({ owner }).then((savedParams) => {
-          const savedTokens = JSON.parse(savedParams.tokens);
-          const combinedTokens = {
-            ...savedTokens,
-            ...refreshedTokens,
-          };
+      this.client.oauth.on('tokens', (refreshedTokens) => {
+        const combinedTokens = {
+          ...tokens,
+          ...refreshedTokens,
+        };
 
-          client.oauth.setCredentials(combinedTokens);
-          this.storage.update({
-            id: savedParams.id,
-            tokens: JSON.stringify(combinedTokens),
-          });
+        this.client.oauth.setCredentials(combinedTokens);
+        this.storage.update({
+          id: this.config.googleStorageId,
+          data: { tokens: combinedTokens },
         });
       });
 
-      client.oauth.setCredentials(typeof tokens === 'string' ? JSON.parse(tokens) : tokens);
+      this.client.oauth.setCredentials(tokens);
 
       const youtubeClient = google.youtube({
         version: 'v3',
-        auth: client.oauth,
+        auth: this.client.oauth,
       });
 
-      client.youtube = new YoutubeClient(youtubeClient, channel_id);
+      const savedConfigYoutube = await this.storage.readOne({ key: 'youtube' });
+      this.client.youtube = new YoutubeClient(
+        youtubeClient,
+        {
+          channelId: this.config.channelId,
+          ...savedConfigYoutube.data,
+        },
+        async (quotaParams) => this.storage.update({
+          id: this.config.youtubeStorageId,
+          data: quotaParams,
+        }),
+      );
     }
-
-    return client;
   }
 }

@@ -27,12 +27,19 @@ export class YoutubeQuotaService {
       ['videos.insert', this.constructor.COST_VIDEOS_INSERT],
       ['playlists.list', this.constructor.COST_PLAYLISTS_LIST],
       ['playlists.insert', this.constructor.COST_PLAYLISTS_INSERT],
-      ['playlistitems.insert', this.constructor.COST_PLAYLISTITEMS_INSERT],
+      ['playlistItems.insert', this.constructor.COST_PLAYLISTITEMS_INSERT],
     ]);
   }
 
   setExceeded() {
     this.rest = this.constructor.LIMIT_EXCEEDED;
+  }
+
+  get() {
+    return {
+      lastUpdateDay: this.lastUpdateDay,
+      rest: this.rest,
+    };
   }
 
   check(...events) {

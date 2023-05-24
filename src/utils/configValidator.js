@@ -39,6 +39,9 @@ const configSchema = yup.object({
   CRON_PERIOD: yup.string().required(),
   CRON_DELAY: yup.string().required(),
   SENTRY_DSN: yup.string().required(),
+  GOOGLE_CLIENT_ID: yup.string().required(),
+  GOOGLE_CLIENT_SECRET: yup.string().required(),
+  GOOGLE_CHANNEL_ID: yup.string().required(),
   ZOOM_WEBHOOK_SECRET_TOKEN: yup.string().required(),
   ZOOM_SKIP_MINIMAL_DURATION_MINUTES: yup.number().required(),
   ZOOM_SKIP_TOPIC_PLAYLIST_CONTAINS: yup.array()
