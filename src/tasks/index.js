@@ -76,7 +76,7 @@ export const prepareYoutubeTask = (server) => {
         if (filteredItems.length === 0) {
           return true;
         }
-        const client = server.googleClient.youtube;
+        const client = server.googleClient.client.youtube;
         let hasQuota = client.checkHasQuota();
         if (!hasQuota) return true;
 
