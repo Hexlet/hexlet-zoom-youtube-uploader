@@ -52,11 +52,11 @@ export class GoogleClient {
     authURL.searchParams.append('state', JSON.stringify({ uuid: this.config.secretUUID }));
     this.client.oauth.authURL = authURL.toString();
 
-    let savedConfigGoogle = await this.storage.readOne({ key: 'google' });
+    let savedConfigGoogle = await this.storage.readOne([{ field: 'key', value: 'google' }]);
     if (!savedConfigGoogle) {
       savedConfigGoogle = await this.storage.add({ key: 'google', data: {} });
     }
-    let savedConfigYoutube = await this.storage.readOne({ key: 'youtube' });
+    let savedConfigYoutube = await this.storage.readOne([{ field: 'key', value: 'youtube' }]);
     if (!savedConfigYoutube) {
       savedConfigYoutube = await this.storage.add({ key: 'youtube', data: {} });
     }
@@ -76,7 +76,7 @@ export class GoogleClient {
   }
 
   async buildYoutubeClient() {
-    const savedConfig = await this.storage.readOne({ id: this.config.googleStorageId });
+    const savedConfig = await this.storage.readOne([{ field: 'id', value: this.config.googleStorageId }]);
     if (!(savedConfig && savedConfig.data)) {
       throw new AppError('Not found saved tokens');
     }
@@ -103,7 +103,7 @@ export class GoogleClient {
         auth: this.client.oauth,
       });
 
-      const savedConfigYoutube = await this.storage.readOne({ key: 'youtube' });
+      const savedConfigYoutube = await this.storage.readOne([{ field: 'key', value: 'youtube' }]);
       this.client.youtube = new YoutubeClient(
         youtubeClient,
         {

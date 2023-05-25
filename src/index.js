@@ -156,9 +156,22 @@ const initServer = (config) => {
       const action = controller.report.bind(server);
 
       return action(data)
-        .then((message) => res
-          .code(constants.HTTP_STATUS_OK)
-          .send({ message, params: {} }));
+        .then(([result, asFile, format, description]) => {
+          if (asFile) {
+            const filename = `ZoomYoutubeReport_${description}.${format}`;
+
+            return res
+              .code(constants.HTTP_STATUS_OK)
+              .headers({
+                'Content-Type': 'text/plain; charset=utf8',
+                'Content-Disposition': `attachment; name="${description}"; filename="${filename}"`,
+              })
+              .send(result);
+          }
+          return res
+            .code(constants.HTTP_STATUS_OK)
+            .send(asFile ? result : { message: result, params: { format, description } });
+        });
     },
   });
 
@@ -190,17 +203,15 @@ const initDatabase = async (server) => {
   });
 
   const generateQB = (tableName) => ({
-    read: (where = {}, sortBy = {}) => {
+    read: (where = [], sortBy = {}, limit = 0) => {
       let select = `SELECT * FROM ${tableName}`;
 
-      const whereKeys = Object.keys(where);
-      const hasWhere = whereKeys.length > 0;
-      if (hasWhere) {
+      if (_.isArray(where) && where.length > 0) {
         const placeholders = [];
-        where = whereKeys.reduce((acc, key) => {
-          const placeholder = `:${key}`;
-          placeholders.push(`${key}=${placeholder}`);
-          acc[placeholder] = where[key];
+        where = where.reduce((acc, { field, value, operator = '=' }, i) => {
+          const placeholder = `:${field}${i}`;
+          placeholders.push(`${field}${operator}${placeholder}`);
+          acc[placeholder] = value;
           return acc;
         }, {});
         select = `${select} WHERE ${placeholders.join(' AND ')}`;
@@ -217,6 +228,10 @@ const initDatabase = async (server) => {
         select = `${select} ORDER BY ${sorts.join(', ')}`;
       }
 
+      if (limit > 0) {
+        select = `${select} LIMIT ${limit}`;
+      }
+
       return db.all(select, where)
         .then((items) => items.map((item) => {
           if (item.data) {
@@ -226,8 +241,8 @@ const initDatabase = async (server) => {
           return item;
         }));
     },
-    readOne: function readOne(where = {}, sortBy = {}) {
-      return this.read(where, sortBy).then((results) => results[0]);
+    readOne: function readOne(where = [], sortBy = {}) {
+      return this.read(where, sortBy, 1).then(([item]) => item);
     },
     update: (params) => {
       const { id, ...fields } = params;

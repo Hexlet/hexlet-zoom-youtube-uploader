@@ -12,7 +12,10 @@ export const prepareDownloadTask = (server) => {
   const itemsInProcessing = new Set();
 
   return () => server.storage.records
-    .read({ loadFromZoomState: loadStateEnum.ready }, { createdAt: 'ASC' })
+    .read(
+      [{ field: 'loadFromZoomState', value: loadStateEnum.ready }],
+      { createdAt: 'ASC' },
+    )
     .then((items) => {
       const loadPromises = items.map((item) => {
         if (itemsInProcessing.has(item.id)) {
@@ -62,10 +65,10 @@ export const prepareYoutubeTask = (server) => {
 
     return server.storage.records
       .read(
-        {
-          loadFromZoomState: loadStateEnum.success,
-          loadToYoutubeState: loadStateEnum.ready,
-        },
+        [
+          { field: 'loadFromZoomState', value: loadStateEnum.success },
+          { field: 'loadToYoutubeState', value: loadStateEnum.ready },
+        ],
         { createdAt: 'ASC' },
       )
       .then(async (items) => {
@@ -181,7 +184,8 @@ export const prepareYoutubeTask = (server) => {
         } while (index < filteredItems.length && hasQuota);
 
         return true;
-      }).catch((err) => {
+      })
+      .catch((err) => {
         server.log.error(err);
         Sentry.setContext('prepareDownloadTask', err);
         Sentry.captureException(err);

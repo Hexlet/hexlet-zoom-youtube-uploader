@@ -1,6 +1,7 @@
 import * as luxon from 'luxon';
 import crypto from 'crypto';
 import flat from 'flat';
+import yup from 'yup';
 import {
   padString,
   parseTopic,
@@ -42,6 +43,7 @@ export async function oauthCallback(data) {
     throw new BadRequestError('Incorrect UUID');
   }
 
+  // TODO: дёрнуть роут с некорректным code и посмотреть будет ли исключение и как оно обработается
   return this.googleClient
     .authorize({ code: query.code })
     .then(() => ({ message: 'All done. Close this tab' }));
@@ -69,17 +71,60 @@ const handlerByFormat = {
     return rows.join('\n');
   },
 };
+const dateRangeSchema = yup.string().test(
+  'date-range',
+  // eslint-disable-next-line no-template-curly-in-string
+  'Date "${path}" must be in format yyyy-mm-dd and less then today',
+  (value) => {
+    try {
+      const userDate = DateTime.fromFormat(value, 'yyyy-MM-dd');
+      if (userDate.invalid) return false;
+      const nowDate = DateTime.now();
+
+      return (userDate.toSQLDate() <= nowDate.toSQLDate());
+    } catch (err) {
+      return false;
+    }
+  },
+);
+const querySchema = yup.object({
+  format: yup.string().oneOf(Object.values(formatEnum)).default(formatEnum.json),
+  asFile: yup.boolean().default(false),
+  from: dateRangeSchema.default(DateTime.now().minus({ days: 6 }).toSQLDate()),
+  to: dateRangeSchema.default(DateTime.now().toSQLDate()),
+});
+const toString = (data, format) => {
+  const handlers = {
+    [formatEnum.json]: () => JSON.stringify(data, null, 1),
+    [formatEnum.tsv]: () => data,
+  };
+  return handlers[format]();
+};
 export async function report(params) {
   const { query } = params;
-  if (!query.format) {
-    query.format = formatEnum.json;
-  }
-  if (!Object.values(formatEnum).includes(query.format)) {
-    throw new BadRequestError('Unknown format for records report');
+  const {
+    format,
+    asFile,
+    from,
+    to,
+  } = await querySchema
+    .validate(query, { abortEarly: false })
+    .catch((err) => {
+      throw new BadRequestError(err.errors.join('\n'));
+    });
+  if (from > to) {
+    throw new BadRequestError('Date "from" must be less then or equal date "to"');
   }
 
   return this.storage.records
-    .read()
+    .read([
+      { field: 'createdAt', operator: '>=', value: from },
+      {
+        field: 'createdAt',
+        operator: '<',
+        value: DateTime.fromFormat(to, 'yyyy-MM-dd').plus({ day: 1 }).toSQLDate(),
+      },
+    ])
     .then((records) => {
       const preparedRecords = [];
       records.forEach((record) => {
@@ -88,7 +133,10 @@ export async function report(params) {
         preparedRecords.push(commonFields);
       });
 
-      return handlerByFormat[query.format](preparedRecords);
+      const rawData = handlerByFormat[format](preparedRecords);
+      const data = asFile ? toString(rawData, format) : rawData;
+      const description = `${from}_${to}`;
+      return [data, asFile, format, description];
     });
 }
 
