@@ -3,7 +3,7 @@ REMOTE=root@95.216.192.49
 release: build deploy
 
 build:
-	rsync -a --exclude='node_modules' ./src/ ./dist
+	rsync -a --exclude='node_modules' --exclude='__tests__' ./src/ ./dist
 	# cd dist && NODE_ENV=production npm ci # При установке зависимостей локально и переносе на виртуалку ломается sqlite3
 
 deploy:

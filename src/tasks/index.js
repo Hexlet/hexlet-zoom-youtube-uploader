@@ -137,6 +137,7 @@ export const prepareYoutubeTask = (server) => {
             .then((res) => {
               switch (item.loadToYoutubeState) {
                 // TODO: запись иногда повисает в статусе processing, наверное из-за нескольких клиентов
+                // похоже, что при создании плейлиста, т.к. все записи на ютубе фактически в плейлист не добавлены
                 case loadStateEnum.ready: {
                   item.loadToYoutubeState = loadStateEnum.processing;
                   data.meta.youtubeUrl = `https://youtu.be/${res.data.id}`;
