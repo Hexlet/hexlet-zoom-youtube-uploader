@@ -6,7 +6,6 @@ export class YoutubeClient {
   static isNotClient = false;
 
   constructor(client, { channelId, lastUpdateDay = null, rest = null }, onQuotaUpdate) {
-    console.log('\n', 'YoutubeClient', { channelId, lastUpdateDay, rest }, '\n');
     if (!client) {
       throw new AppError('Empty Google client for Youtube client');
     }

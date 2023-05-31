@@ -209,6 +209,12 @@ const initDatabase = async (server) => {
       if (_.isArray(where) && where.length > 0) {
         const placeholders = [];
         where = where.reduce((acc, { field, value, operator = '=' }, i) => {
+          if (operator === 'IN') {
+            const placeholder = `(${'?'.repeat(value.length).split('').join(',')})`;
+            placeholders.push(`${field} ${operator} ${placeholder}`);
+            acc.names = value;
+            return acc;
+          }
           const placeholder = `:${field}${i}`;
           placeholders.push(`${field}${operator}${placeholder}`);
           acc[placeholder] = value;
@@ -232,7 +238,7 @@ const initDatabase = async (server) => {
         select = `${select} LIMIT ${limit}`;
       }
 
-      return db.all(select, where)
+      return db.all(select, where.names ? where.names : where)
         .then((items) => items.map((item) => {
           if (item.data) {
             item.data = JSON.parse(item.data);

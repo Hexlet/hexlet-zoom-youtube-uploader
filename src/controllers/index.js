@@ -57,12 +57,15 @@ const handlerByFormat = {
   [formatEnum.json]: (records) => records,
   [formatEnum.tsv]: (records) => {
     if (records.length === 0) return '';
-    const firstRecord = records[0];
-    const headers = Object.keys(flat(firstRecord));
-    const headersRow = headers.join('\t');
-    const rows = [headersRow];
+    const headersStartRow = '';
+    const rows = [headersStartRow];
 
     records.forEach((record) => {
+      const headers = Object.keys(flat(record));
+      const headersRow = headers.join('\t');
+      if (headersRow.length > rows[0].length) {
+        rows[0] = headersRow;
+      }
       const values = Object.values(flat(record));
       const valuesRow = values.join('\t').replace(/\n/gim, '\\n');
       rows.push(valuesRow);
@@ -116,7 +119,7 @@ export async function report(params) {
     throw new BadRequestError('Date "from" must be less then or equal date "to"');
   }
 
-  return this.storage.records
+  return this.storage.events
     .read([
       { field: 'createdAt', operator: '>=', value: from },
       {
@@ -125,12 +128,31 @@ export async function report(params) {
         value: DateTime.fromFormat(to, 'yyyy-MM-dd').plus({ day: 1 }).toSQLDate(),
       },
     ])
-    .then((records) => {
+    .then((incomingEvents) => this.storage.records
+      .read([{
+        field: 'eventId',
+        operator: 'IN',
+        value: incomingEvents.map(({ id }) => id),
+      }])
+      .then((records) => [incomingEvents, records]))
+    .then(([incomingEvents, records]) => {
       const preparedRecords = [];
-      records.forEach((record) => {
-        const { data, ...commonFields } = record;
-        commonFields.meta = data.meta;
-        preparedRecords.push(commonFields);
+      incomingEvents.forEach((event) => {
+        const { data: eventData, ...eventCommonFields } = event;
+        eventCommonFields.meta = {
+          topic: eventData.payload.object.topic,
+          duration: eventData.payload.object.duration,
+          host_email: eventData.payload.object.host_email,
+          account_id: eventData.payload.account_id,
+        };
+        const record = records.find(({ eventId }) => eventId === event.id);
+        if (record) {
+          const { data: recordData, ...recordCommonFields } = record;
+          recordCommonFields.meta = recordData.meta;
+          preparedRecords.push({ event: eventCommonFields, record: recordCommonFields });
+        } else {
+          preparedRecords.push({ event: eventCommonFields });
+        }
       });
 
       const rawData = handlerByFormat[format](preparedRecords);
@@ -197,7 +219,7 @@ export async function events(req) {
       topic,
       recording_files,
       start_time,
-      account_id,
+      host_id,
     } = data.payload.object;
 
     const skipReasons = skipHandlers.reduce((acc, { check, message }) => {
@@ -249,7 +271,7 @@ export async function events(req) {
               youtubeName: '',
               youtubePlaylist: playlist,
               youtubeUrl: '',
-              zoomAuthorId: account_id,
+              zoomAuthorId: host_id,
             });
 
             const videoRecords = recording_files.filter(({ recording_type, status }) => (
