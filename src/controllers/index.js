@@ -90,12 +90,6 @@ const dateRangeSchema = yup.string().test(
     }
   },
 );
-const querySchema = yup.object({
-  format: yup.string().oneOf(Object.values(formatEnum)).default(formatEnum.json),
-  asFile: yup.boolean().default(false),
-  from: dateRangeSchema.default(DateTime.now().minus({ days: 6 }).toSQLDate()),
-  to: dateRangeSchema.default(DateTime.now().toSQLDate()),
-});
 const toString = (data, format) => {
   const handlers = {
     [formatEnum.json]: () => JSON.stringify(data, null, 1),
@@ -105,6 +99,12 @@ const toString = (data, format) => {
 };
 export async function report(params) {
   const { query } = params;
+  const querySchema = yup.object({
+    format: yup.string().oneOf(Object.values(formatEnum)).default(formatEnum.json),
+    asFile: yup.boolean().default(false),
+    from: dateRangeSchema.default(DateTime.now().minus({ days: 7 }).toSQLDate()),
+    to: dateRangeSchema.default(DateTime.now().toSQLDate()),
+  });
   const {
     format,
     asFile,
