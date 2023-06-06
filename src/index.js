@@ -24,6 +24,7 @@ import {
 import {
   prepareDownloadTask,
   prepareYoutubeTask,
+  prepareVideosDeletingTask,
 } from './tasks/index.js';
 import * as controller from './controllers/index.js';
 
@@ -306,6 +307,7 @@ const initDatabase = async (server) => {
 const initTasks = (server) => [
   prepareDownloadTask(server),
   prepareYoutubeTask(server),
+  prepareVideosDeletingTask(server),
 ].map((task) => new CronService(
   task,
   ms(server.config.CRON_PERIOD),
