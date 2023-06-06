@@ -137,14 +137,17 @@ export async function report(params) {
       .then((records) => [incomingEvents, records]))
     .then(([incomingEvents, records]) => {
       const preparedRecords = [];
+
       incomingEvents.forEach((event) => {
         const { data: eventData, ...eventCommonFields } = event;
+
         eventCommonFields.meta = {
           topic: eventData.payload.object.topic,
           duration: eventData.payload.object.duration,
           host_email: eventData.payload.object.host_email,
-          account_id: eventData.payload.account_id,
+          host_id: eventData.payload.object.host_id,
         };
+
         const record = records.find(({ eventId }) => eventId === event.id);
         if (record) {
           const { data: recordData, ...recordCommonFields } = record;
@@ -158,6 +161,7 @@ export async function report(params) {
       const rawData = handlerByFormat[format](preparedRecords);
       const data = asFile ? toString(rawData, format) : rawData;
       const description = `${from}_${to}`;
+
       return [data, asFile, format, description];
     });
 }
