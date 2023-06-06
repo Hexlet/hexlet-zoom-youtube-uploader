@@ -184,7 +184,7 @@ const skipHandlers = [
 
       return config.ZOOM_SKIP_TOPIC_PLAYLIST_CONTAINS.some((word) => playlist.includes(word));
     },
-    message: 'Video topic contains stop-words in playlist part',
+    message: 'Video topic not parsed or contains stop-words in playlist part',
   },
   {
     check: (payloadObject, config) => config.ZOOM_SKIP_USERS_MAILS
