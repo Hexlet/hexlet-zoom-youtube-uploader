@@ -1,19 +1,15 @@
 import fs from 'fs';
 import path from 'path';
-import { constants } from 'http2';
 // fastify
 import fastify from 'fastify';
 import * as Sentry from '@sentry/node';
 import '@sentry/tracing';
 // libs
-import ms from 'ms';
 import sqlite3 from 'sqlite3';
 import * as sqlite from 'sqlite';
 import _ from 'lodash';
-import { ValidationError } from 'yup';
 // app
 import { configValidator } from './utils/configValidator.js';
-import { CronService } from './services/CronService.js';
 import { GoogleClient } from './services/GoogleClient.js';
 import {
   buildVideoPath,
@@ -21,12 +17,8 @@ import {
   routeEnum,
   __dirnameBuild,
 } from './utils/helpers.js';
-import {
-  prepareDownloadTask,
-  prepareYoutubeTask,
-  prepareVideosDeletingTask,
-} from './tasks/index.js';
-import * as controller from './controllers/index.js';
+import { initTasks } from './tasks/index.js';
+import { attachRouting } from './controllers/index.js';
 
 const initServer = (config) => {
   const pinoPrettyTransport = {
@@ -50,131 +42,9 @@ const initServer = (config) => {
     environment: config.NODE_ENV,
   });
 
-  routeEnum.events.url = `/${config.ROUTE_UUID}`;
-
   server.decorate('config', config);
 
-  server.setErrorHandler((err, req, res) => {
-    server.log.debug(err);
-    Sentry.setContext('global error handler', err);
-    Sentry.captureException(err);
-
-    const isValidationError = err instanceof ValidationError;
-    const message = err.message || 'Unknown error';
-    const statusCode = isValidationError
-      ? constants.HTTP_STATUS_BAD_REQUEST
-      : err.statusCode || constants.HTTP_STATUS_INTERNAL_SERVER_ERROR;
-    const params = isValidationError
-      ? err.errors
-      : err.params || {};
-
-    res.code(statusCode).send({ message, params });
-  });
-
-  server.setNotFoundHandler((req, res) => {
-    server.log.debug(req);
-    res
-      .code(constants.HTTP_STATUS_NOT_FOUND)
-      .send({
-        message: `Route ${req.method} ${req.url} not found`,
-        params: {},
-      });
-  });
-
-  server.route({
-    method: routeEnum.main.method,
-    url: `${routeEnum.prefix}${routeEnum.version.v1}${routeEnum.main.url}`,
-    handler(req, res) {
-      res.code(constants.HTTP_STATUS_OK).send({ message: 'Hi!', params: {} });
-    },
-  });
-
-  server.route({
-    method: routeEnum.oauth.method,
-    url: `${routeEnum.prefix}${routeEnum.version.v1}${routeEnum.oauth.url}`,
-    handler(req, res) {
-      const data = {
-        body: req.body || {},
-        query: req.query || {},
-      };
-      const action = controller.oauth.bind(server);
-
-      return action(data)
-        .then((authURL) => res.redirect(authURL));
-    },
-  });
-
-  server.route({
-    method: routeEnum.oauthCallback.method,
-    url: `${routeEnum.oauthCallback.url}`,
-    handler(req, res) {
-      const data = {
-        body: req.body || {},
-        query: req.query || {},
-      };
-      const action = controller.oauthCallback.bind(server);
-
-      return action(data)
-        .then((result) => {
-          const message = result && result.message ? result.message : result.toString();
-          const params = result && result.params ? result.params : {};
-          return res.code(constants.HTTP_STATUS_OK).send({ message, params });
-        });
-    },
-  });
-
-  server.route({
-    method: routeEnum.events.method,
-    url: `${routeEnum.prefix}${routeEnum.version.v1}${routeEnum.events.url}`,
-    handler(req, res) {
-      const data = {
-        body: req.body || {},
-        query: req.query || {},
-      };
-      const action = controller.events.bind(server);
-
-      return action(data)
-        .then(([result, task]) => {
-          if (task) {
-            task().catch((err) => {
-              server.log.error(err);
-              Sentry.setContext('task on route events', err);
-              Sentry.captureException(err);
-            });
-          }
-          return res.code(constants.HTTP_STATUS_OK).send(result);
-        });
-    },
-  });
-
-  server.route({
-    method: routeEnum.report.method,
-    url: `${routeEnum.prefix}${routeEnum.version.v1}${routeEnum.report.url}${routeEnum.events.url}`,
-    handler(req, res) {
-      const data = {
-        query: req.query || {},
-      };
-      const action = controller.report.bind(server);
-
-      return action(data)
-        .then(([result, asFile, format, description]) => {
-          if (asFile) {
-            const filename = `ZoomYoutubeReport_${description}.${format}`;
-
-            return res
-              .code(constants.HTTP_STATUS_OK)
-              .headers({
-                'Content-Type': 'text/plain; charset=utf8',
-                'Content-Disposition': `attachment; name="${description}"; filename="${filename}"`,
-              })
-              .send(result);
-          }
-          return res
-            .code(constants.HTTP_STATUS_OK)
-            .send(asFile ? result : { message: result, params: { format, description } });
-        });
-    },
-  });
+  attachRouting(server);
 
   return server;
 };
@@ -203,6 +73,7 @@ const initDatabase = async (server) => {
     migrationsPath: path.join(__dirnameBuild(import.meta.url), 'migrations'),
   });
 
+  // TODO: заменить кастомный query builder на ORM или другой нормальный QB
   const generateQB = (tableName) => ({
     read: (where = [], sortBy = {}, limit = 0) => {
       let select = `SELECT * FROM ${tableName}`;
@@ -303,16 +174,6 @@ const initDatabase = async (server) => {
 
   return db;
 };
-
-const initTasks = (server) => [
-  prepareDownloadTask(server),
-  prepareYoutubeTask(server),
-  prepareVideosDeletingTask(server),
-].map((task) => new CronService(
-  task,
-  ms(server.config.CRON_PERIOD),
-  ms(server.config.CRON_DELAY),
-));
 
 export const app = async (envName) => {
   process.on('unhandledRejection', (err) => {

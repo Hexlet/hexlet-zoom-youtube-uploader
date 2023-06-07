@@ -118,6 +118,7 @@ export const buildVideoPath = (storageDirpath, filename, ext = 'mp4') => path
 export const writeFile = (filepath, data) => fs.promises.writeFile(filepath, data, 'utf-8');
 export const readFile = (filepath) => fs.promises.readFile(filepath, 'utf-8').then((data) => JSON.parse(data));
 export const deleteFile = (filepath) => fs.promises.unlink(filepath);
+export const existsFile = (filepath) => fs.existsSync(filepath);
 
 export const downloadZoomFile = ({ filepath, url, token }) => {
   const file = fs.createWriteStream(filepath);
