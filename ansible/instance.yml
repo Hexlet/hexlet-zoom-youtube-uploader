@@ -1,0 +1,28 @@
+- hosts: [instances]
+  any_errors_fatal: true
+  gather_facts: no
+  tasks:
+    - docker_container:
+        recreate: yes
+        name: dd-agent
+        image: gcr.io/datadoghq/agent:latest
+        state: started
+        restart_policy: always
+        cgroupns_mode: host
+        pid_mode: host
+        env:
+          DD_HOSTNAME_FILE: "/host/etc/hostname"
+          DD_API_KEY: "{{ datadog.api_key }}"
+          DD_PROCESS_AGENT_ENABLED: "true"
+          DD_DOGSTATSD_NON_LOCAL_TRAFFIC: "true"
+          DD_TAGS: "zoom-youtube-uploader"
+        volumes:
+          - "/var/run/docker.sock:/var/run/docker.sock:ro"
+          - "/proc/:/host/proc/:ro"
+          - "/sys/fs/cgroup/:/host/sys/fs/cgroup:ro"
+          - "/etc/hostname/:/host/etc/hostname:ro"
+        ports:
+          - "8125:8125"
+          - "8125:8125/udp"
+          - "8126:8126/tcp"
+  tags: datadog
