@@ -19,5 +19,5 @@ dev:
 test:
 	cd src && make test lint
 
-getbd:
+getdb:
 	rsync -avz --progress -e 'ssh -i ~/.ssh/id_rsa_hexlet' $(REMOTE):/root/data/database.db ./remote.db
