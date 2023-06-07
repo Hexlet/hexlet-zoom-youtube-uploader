@@ -16,7 +16,6 @@ export async function controller(data) {
     throw new BadRequestError('Incorrect UUID');
   }
 
-  // TODO: дёрнуть роут с некорректным code и посмотреть будет ли исключение и как оно обработается
   return this.googleClient
     .authorize({ code: query.code })
     .then(() => ({ message: 'All done. Close this tab' }));
