@@ -87,8 +87,6 @@ export const task = (server) => {
             })
             .then((res) => {
               switch (item.loadToYoutubeState) {
-                // TODO: запись иногда повисает в статусе processing, наверное из-за нескольких клиентов
-                // похоже, что при создании плейлиста, т.к. все записи на ютубе фактически в плейлист не добавлены
                 case loadStateEnum.ready: {
                   item.loadToYoutubeState = loadStateEnum.processing;
                   data.meta.youtubeUrl = `https://youtu.be/${res.data.id}`;
@@ -124,6 +122,9 @@ export const task = (server) => {
                       hasQuota = false;
                       return server.storage.records.update(item);
                     }
+                    server.log.error(err);
+                    Sentry.setContext('task: upload. insertToPlaylist', err);
+                    Sentry.captureException(err);
                     throw err;
                   });
               }
@@ -139,7 +140,7 @@ export const task = (server) => {
       })
       .catch((err) => {
         server.log.error(err);
-        Sentry.setContext('prepareDownloadTask', err);
+        Sentry.setContext('task: upload', err);
         Sentry.captureException(err);
       });
   };

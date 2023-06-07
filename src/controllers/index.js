@@ -31,7 +31,6 @@ export const attachRouting = (server) => {
   });
 
   server.setNotFoundHandler((req, res) => {
-    server.log.debug(req);
     res
       .code(constants.HTTP_STATUS_NOT_FOUND)
       .send({
