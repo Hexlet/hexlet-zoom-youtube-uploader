@@ -38,6 +38,7 @@ const configSchema = yup.object({
   ROUTE_UUID: yup.string().required(),
   CRON_PERIOD: yup.string().required(),
   CRON_DELAY: yup.string().required(),
+  CRON_DELETE_DAYS: yup.number().min(1).required(),
   SENTRY_DSN: yup.string().required(),
   GOOGLE_CLIENT_ID: yup.string().required(),
   GOOGLE_CLIENT_SECRET: yup.string().required(),

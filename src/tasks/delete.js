@@ -11,7 +11,7 @@ export const task = (server) => () => server.storage.records
   .read(
     [
       { field: 'loadToYoutubeState', value: loadStateEnum.success },
-      { field: 'createdAt', operator: '<=', value: DateTime.now().minus({ days: 7 }).toSQLDate() },
+      { field: 'createdAt', operator: '<=', value: DateTime.now().minus({ days: server.config.CRON_DELETE_DAYS }).toSQLDate() },
       { field: 'isVideoRemoved', operator: '=', value: 0 },
     ],
   )
