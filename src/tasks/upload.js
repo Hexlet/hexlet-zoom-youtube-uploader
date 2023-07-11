@@ -30,9 +30,21 @@ export const task = (server) => {
         }
         const client = server.googleClient.client.youtube;
         let hasQuota = client.checkHasQuota();
+
         if (!hasQuota) return true;
 
-        await client.getPlayLists();
+        await client.getPlayLists()
+          .catch((err) => {
+            if (isYoutubeQuotaError(err)) {
+              client.setQuotaExceeded();
+              hasQuota = false;
+            } else {
+              throw err;
+            }
+          });
+
+        if (!hasQuota) return true;
+
         let index = 0;
 
         do {
