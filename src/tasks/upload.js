@@ -36,11 +36,12 @@ export const task = (server) => {
         await client.getPlayLists()
           .catch((err) => {
             if (isYoutubeQuotaError(err)) {
-              client.setQuotaExceeded();
-              hasQuota = false;
-            } else {
-              throw err;
+              return client.setQuotaExceeded().then(() => {
+                hasQuota = false;
+              });
             }
+
+            throw err;
           });
 
         if (!hasQuota) return true;
@@ -85,17 +86,19 @@ export const task = (server) => {
             })
             .catch((err) => {
               if (isYoutubeQuotaError(err)) {
-                client.setQuotaExceeded();
-                item.loadToYoutubeError = err.message;
-                item.loadToYoutubeState = loadStateEnum.unfinally;
-                hasQuota = false;
-              } else {
-                server.log.error(err);
-                Sentry.setContext('uploadVideo', err);
-                Sentry.captureException(err);
-                item.loadToYoutubeError = err.message;
-                item.loadToYoutubeState = loadStateEnum.failed;
+                return client.setQuotaExceeded().then(() => {
+                  item.loadToYoutubeError = err.message;
+                  item.loadToYoutubeState = loadStateEnum.unfinally;
+                  hasQuota = false;
+                  return true;
+                });
               }
+              server.log.error(err);
+              Sentry.setContext('uploadVideo', err);
+              Sentry.captureException(err);
+              item.loadToYoutubeError = err.message;
+              item.loadToYoutubeState = loadStateEnum.failed;
+              return true;
             })
             .then((res) => {
               switch (item.loadToYoutubeState) {

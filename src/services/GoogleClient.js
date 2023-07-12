@@ -52,13 +52,13 @@ export class GoogleClient {
     authURL.searchParams.append('state', JSON.stringify({ uuid: this.config.secretUUID }));
     this.client.oauth.authURL = authURL.toString();
 
-    let savedConfigGoogle = await this.storage.readOne([{ field: 'key', value: 'google' }]);
+    let savedConfigGoogle = await this.storage.extra.readOne([{ field: 'key', value: 'google' }]);
     if (!savedConfigGoogle) {
-      savedConfigGoogle = await this.storage.add({ key: 'google', data: {} });
+      savedConfigGoogle = await this.storage.extra.add({ key: 'google', data: {} });
     }
-    let savedConfigYoutube = await this.storage.readOne([{ field: 'key', value: 'youtube' }]);
+    let savedConfigYoutube = await this.storage.extra.readOne([{ field: 'key', value: 'youtube' }]);
     if (!savedConfigYoutube) {
-      savedConfigYoutube = await this.storage.add({ key: 'youtube', data: {} });
+      savedConfigYoutube = await this.storage.extra.add({ key: 'youtube', data: {} });
     }
     this.config.googleStorageId = savedConfigGoogle.lastID || savedConfigGoogle.id;
     this.config.youtubeStorageId = savedConfigYoutube.lastID || savedConfigYoutube.id;
@@ -68,7 +68,7 @@ export class GoogleClient {
 
   async authorize({ code }) {
     return this.client.oauth.getToken(code)
-      .then(({ tokens }) => this.storage.update({
+      .then(({ tokens }) => this.storage.extra.update({
         id: this.config.googleStorageId,
         data: { tokens },
       }))
@@ -76,7 +76,7 @@ export class GoogleClient {
   }
 
   async buildYoutubeClient() {
-    const savedConfig = await this.storage.readOne([{ field: 'id', value: this.config.googleStorageId }]);
+    const savedConfig = await this.storage.extra.readOne([{ field: 'id', value: this.config.googleStorageId }]);
     if (!(savedConfig && savedConfig.data)) {
       throw new AppError('Not found saved tokens');
     }
@@ -90,7 +90,7 @@ export class GoogleClient {
         };
 
         this.client.oauth.setCredentials(combinedTokens);
-        this.storage.update({
+        this.storage.extra.update({
           id: this.config.googleStorageId,
           data: { tokens: combinedTokens },
         });
@@ -103,17 +103,23 @@ export class GoogleClient {
         auth: this.client.oauth,
       });
 
-      const savedConfigYoutube = await this.storage.readOne([{ field: 'key', value: 'youtube' }]);
+      const savedConfigYoutube = await this.storage.extra.readOne([{ field: 'key', value: 'youtube' }]);
       this.client.youtube = new YoutubeClient(
         youtubeClient,
         {
           channelId: this.config.channelId,
           ...savedConfigYoutube.data,
         },
-        async (quotaParams) => this.storage.update({
-          id: this.config.youtubeStorageId,
-          data: quotaParams,
-        }),
+        {
+          onQuotaUpdate: async (quotaParams) => this.storage.extra.update({
+            id: this.config.youtubeStorageId,
+            data: quotaParams,
+          }),
+          onInit: async () => this.storage.playlists.read(),
+          onPlaylistsLoad: async (playlists) => Promise.all(playlists
+            .map((playlist) => this.storage.playlists.add(playlist))),
+          onPlaylistCreate: async (playlist) => this.storage.playlists.add(playlist),
+        },
       );
       await this.client.youtube.init();
     }

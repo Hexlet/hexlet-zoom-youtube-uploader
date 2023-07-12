@@ -5,19 +5,36 @@ import { AppError } from '../utils/errors.js';
 export class YoutubeClient {
   static isNotClient = false;
 
-  constructor(client, { channelId, lastUpdateDay = null, rest = null }, onQuotaUpdate) {
+  constructor(
+    client,
+    { channelId, lastUpdateDay = null, rest = null },
+    {
+      onQuotaUpdate,
+      onInit,
+      onPlaylistsLoad,
+      onPlaylistCreate,
+    },
+  ) {
     if (!client) {
       throw new AppError('Empty Google client for Youtube client');
     }
     this.client = client;
     this.channelId = channelId;
     this.playlistIdMap = new Map([]);
-    this.onQuotaUpdate = onQuotaUpdate;
+    this.hooks = {
+      onQuotaUpdate,
+      onInit,
+      onPlaylistsLoad,
+      onPlaylistCreate,
+    };
     this.quotaService = new YoutubeQuotaService({ lastUpdateDay, rest });
   }
 
   async init() {
-    return this.onQuotaUpdate(this.quotaService.get());
+    return this.hooks.onInit()
+      .then((playlists) => playlists
+        .forEach(({ youtubeId, youtubeTitle }) => this.playlistIdMap.set(youtubeTitle, youtubeId)))
+      .then(() => this.hooks.onQuotaUpdate(this.quotaService.get()));
   }
 
   async getPlayLists() {
@@ -27,7 +44,7 @@ export class YoutubeClient {
 
     const loadPlayLists = async (pageToken = undefined) => {
       this.quotaService.pay('playlists.list');
-      this.onQuotaUpdate(this.quotaService.get());
+      await this.hooks.onQuotaUpdate(this.quotaService.get());
 
       return this.client.playlists
         .list({
@@ -36,16 +53,30 @@ export class YoutubeClient {
           channelId: this.channelId,
           pageToken,
         })
-        .then((res) => {
-          res.data.items.forEach((item) => {
-            this.playlistIdMap.set(item.snippet.title, item.id);
-          });
-          if (res.data.nextPageToken) {
-            return loadPlayLists(res.data.nextPageToken);
-          }
+        .then(({ data }) => this.hooks.onPlaylistsLoad(
+          data.items
+            .map((item) => {
+              if (!this.playlistIdMap.has(item.snippet.title)) {
+                return {
+                  youtubeTitle: item.snippet.title,
+                  youtubeId: item.id,
+                  data: item.snippet,
+                };
+              }
+              return null;
+            })
+            .filter((x) => x),
+        )
+          .then(() => {
+            data.items.forEach((item) => {
+              this.playlistIdMap.set(item.snippet.title, item.id);
+            });
+            if (data.nextPageToken) {
+              return loadPlayLists(data.nextPageToken);
+            }
 
-          return true;
-        });
+            return true;
+          }));
     };
 
     return loadPlayLists();
@@ -53,7 +84,7 @@ export class YoutubeClient {
 
   async createPlaylist({ title }) {
     this.quotaService.pay('playlists.insert');
-    this.onQuotaUpdate(this.quotaService.get());
+    await this.hooks.onQuotaUpdate(this.quotaService.get());
 
     return this.client.playlists
       .insert({
@@ -67,14 +98,17 @@ export class YoutubeClient {
           },
         },
       })
-      .then((res) => {
-        this.playlistIdMap.set(res.data.snippet.title, res.data.id);
-      });
+      .then(({ data }) => this.hooks.onPlaylistCreate({
+        youtubeTitle: data.snippet.title,
+        youtubeId: data.id,
+        data: data.snippet,
+      })
+        .then(() => this.playlistIdMap.set(data.snippet.title, data.id)));
   }
 
   async addToPlaylist({ title, videoId }) {
     this.quotaService.pay('playlistItems.insert');
-    this.onQuotaUpdate(this.quotaService.get());
+    await this.hooks.onQuotaUpdate(this.quotaService.get());
     const playlistId = this.playlistIdMap.get(title);
 
     return this.client.playlistItems
@@ -104,7 +138,7 @@ export class YoutubeClient {
 
   async uploadVideo({ title, description, filepath }) {
     this.quotaService.pay('videos.insert');
-    this.onQuotaUpdate(this.quotaService.get());
+    await this.hooks.onQuotaUpdate(this.quotaService.get());
 
     return this.client.videos
       .insert({
@@ -141,9 +175,9 @@ export class YoutubeClient {
     return this.quotaService.check(...events);
   }
 
-  setQuotaExceeded() {
+  async setQuotaExceeded() {
     this.quotaService.setExceeded();
-    this.onQuotaUpdate(this.quotaService.get());
+    await this.hooks.onQuotaUpdate(this.quotaService.get());
     return true;
   }
 }

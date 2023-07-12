@@ -167,6 +167,7 @@ const initDatabase = async (server) => {
   const storage = {
     events: generateQB('events'),
     records: generateQB('records'),
+    playlists: generateQB('playlists'),
     extra: generateQB('extra'),
   };
 
@@ -193,7 +194,7 @@ export const app = async (envName) => {
     clientSecret: config.GOOGLE_CLIENT_SECRET,
     channelId: config.GOOGLE_CHANNEL_ID,
     secretUUID: config.ROUTE_UUID,
-    storage: server.storage.extra,
+    storage: server.storage,
   });
   await googleClient.init();
   server.decorate('googleClient', googleClient);
