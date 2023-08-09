@@ -34,6 +34,7 @@ const initServer = (config) => {
       ...transport,
       level: config.LOG_LEVEL,
     },
+    disableRequestLogging: true,
   });
 
   Sentry.init({
