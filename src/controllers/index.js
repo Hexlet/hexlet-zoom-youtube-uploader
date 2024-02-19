@@ -1,9 +1,11 @@
 import { constants } from 'http2';
+import fs from 'fs';
+import path from 'path';
 // libs
 import * as Sentry from '@sentry/node';
 import { ValidationError } from 'yup';
 // helpers
-import { routeEnum } from '../utils/helpers.js';
+import { routeEnum, __dirnameBuild } from '../utils/helpers.js';
 // controllers
 import * as events from './events.js';
 import * as oauth from './oauth.js';
@@ -37,6 +39,38 @@ export const attachRouting = (server) => {
         message: `Route ${req.method} ${req.url} not found`,
         params: {},
       });
+  });
+
+  server.route({
+    method: 'GET',
+    url: '/',
+    handler(req, res) {
+      const __dirname = __dirnameBuild(import.meta.url);
+      const mainPage = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf-8');
+
+      res
+        .code(constants.HTTP_STATUS_OK)
+        .headers({
+          'Content-Type': 'text/html; charset=utf8',
+        })
+        .send(mainPage);
+    },
+  });
+
+  server.route({
+    method: 'GET',
+    url: '/privacy',
+    handler(req, res) {
+      const __dirname = __dirnameBuild(import.meta.url);
+      const privacyPage = fs.readFileSync(path.join(__dirname, 'privacy.html'), 'utf-8');
+
+      res
+        .code(constants.HTTP_STATUS_OK)
+        .headers({
+          'Content-Type': 'text/html; charset=utf8',
+        })
+        .send(privacyPage);
+    },
   });
 
   server.route({
