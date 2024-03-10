@@ -10,6 +10,7 @@ const { DateTime } = luxon;
 const formatEnum = {
   json: 'json',
   tsv: 'tsv',
+  html: 'html',
 };
 
 const handlerByFormat = {
@@ -31,6 +32,26 @@ const handlerByFormat = {
     });
 
     return rows.join('\n');
+  },
+  [formatEnum.html]: (records) => {
+    if (records.length === 0) return '';
+    records.sort(() => -1);
+    const headersStartRow = '';
+    const rows = [headersStartRow];
+
+    records.forEach((record) => {
+      const flatRecord = flat(record);
+      const headers = Object.keys(flatRecord);
+      const headersRow = `<tr>${headers.map((h) => `<th style="border: 1px solid;">${h}</th>`).join('')}</tr>`;
+      if (headersRow.length > rows[0].length) {
+        rows[0] = headersRow;
+      }
+      const values = `<tr>${Object.values(flatRecord).map((v) => `<td style="border: 1px solid;">${v}</td>`).join('')}</tr>`;
+      rows.push(values);
+    });
+
+    const head = rows.shift();
+    return `<table style="border-collapse: collapse;"><thead>${head}</thead><tbody>${rows.join('\n')}</tbody></table>`;
   },
 };
 
@@ -55,6 +76,7 @@ const toString = (data, format) => {
   const handlers = {
     [formatEnum.json]: () => JSON.stringify(data, null, 1),
     [formatEnum.tsv]: () => data,
+    [formatEnum.html]: () => data,
   };
   return handlers[format]();
 };

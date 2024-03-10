@@ -150,6 +150,14 @@ export const attachRouting = (server) => {
 
       return action(data)
         .then(([result, asFile, format, description]) => {
+          if (format === 'html') {
+            return res
+              .code(constants.HTTP_STATUS_OK)
+              .headers({
+                'Content-Type': 'text/html; charset=utf8',
+              })
+              .send(result);
+          }
           if (asFile) {
             const filename = `ZoomYoutubeReport_${description}.${format}`;
 
